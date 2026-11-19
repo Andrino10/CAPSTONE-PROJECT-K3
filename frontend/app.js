@@ -5,133 +5,11 @@
  *
  *  Tanggung jawab file ini:
  *  ✅ Interaksi UI (input, loading, animasi, render)
- *  ✅ Dummy data untuk demo / presentasi
- *  ✅ Fungsi analyzeReport() siap dihubungkan ke
- *     Python backend via fetch('/api/analyze')
- *
- *  CARA HUBUNGKAN KE BACKEND PYTHON:
- *  → Uncomment blok "OPTION A — Backend"
- *  → Comment blok  "OPTION B — Demo Mode"
- *  → Pastikan Python Flask berjalan di port yang sesuai
+ *  ✅ Mengirim laporan dan contoh knowledge ke Python backend
  * ═══════════════════════════════════════════════════
  */
 
 'use strict';
-
-// ═══════════════════════════════════════════════════
-//  DUMMY DATA — Untuk demo presentasi (tanpa backend)
-// ═══════════════════════════════════════════════════
-
-const SAMPLE_REPORT =
-  'Pekerja melakukan pengelasan di ketinggian 12 meter tanpa menggunakan harness dan helm pengaman. ' +
-  'Lantai scaffolding dalam kondisi licin akibat tumpahan oli. ' +
-  'Tidak tersedia APAR di sekitar lokasi kerja. ' +
-  'Beberapa kabel listrik tampak tidak berselubung di dekat area kerja. ' +
-  'Pengawas lapangan tidak berada di lokasi saat aktivitas berlangsung.';
-
-const DUMMY_RESULTS = {
-  tinggi: {
-    level: 'TINGGI',
-    caption: 'Risiko sangat tinggi — tindakan segera diperlukan',
-    score: 90,
-    findings: [
-      'Pekerja tidak menggunakan helm dan harness saat bekerja di ketinggian',
-      'Lantai scaffolding licin — risiko terpeleset dan jatuh dari ketinggian',
-      'Tidak tersedia APAR di area kerja panas (hot work)',
-      'Kabel listrik tidak berselubung di dekat area pengelasan',
-      'Absennya pengawas lapangan saat aktivitas berisiko tinggi berlangsung',
-    ],
-    cause:
-      'Terdapat pelanggaran serius terhadap regulasi K3 yang berlaku. ' +
-      'Kombinasi antara pekerjaan di ketinggian tanpa APD, permukaan licin, ' +
-      'dan absennya pengawas merupakan pola risiko yang sering menjadi penyebab ' +
-      'kecelakaan fatal di industri konstruksi dan manufaktur. ' +
-      'Faktor utama: ketidakpatuhan prosedur, kurangnya pengawasan, dan kondisi lingkungan yang tidak terkontrol.',
-    recommendations: [
-      'Hentikan seluruh aktivitas kerja sampai kondisi aman dipenuhi',
-      'Wajibkan pemakaian full-body harness, helm, dan APD lengkap untuk semua pekerja di ketinggian >1.8m',
-      'Bersihkan tumpahan oli dan pasang material anti-slip di lantai scaffolding',
-      'Sediakan minimal 2 unit APAR tipe CO2 dan terbitkan Hot Work Permit sebelum pengelasan',
-      'Ganti atau lindungi kabel listrik terbuka sebelum aktivitas dilanjutkan',
-      'Tunjuk pengawas K3 bersertifikat untuk mendampingi pekerjaan berisiko tinggi',
-    ],
-    references: [
-      {
-        text: 'Permenaker No.9/2016: Pekerjaan pada ketinggian wajib menggunakan full-body harness dan safety lanyard.',
-        source: 'Permenaker No. 9 Tahun 2016',
-      },
-      {
-        text: 'Permenaker No.4/1980: Setiap tempat kerja wajib dilengkapi Alat Pemadam Api Ringan (APAR).',
-        source: 'Permenaker No. 4 Tahun 1980',
-      },
-      {
-        text: 'SNI ISO 45001:2018: Identifikasi bahaya dan penilaian risiko wajib dilakukan secara sistematis.',
-        source: 'SNI ISO 45001:2018',
-      },
-    ],
-  },
-  sedang: {
-    level: 'SEDANG',
-    caption: 'Risiko moderat — pengendalian segera dibutuhkan',
-    score: 58,
-    findings: [
-      'Kondisi lantai area kerja licin atau basah',
-      'Tidak ada tanda peringatan atau barrier di area berbahaya',
-      'Ventilasi area kerja kurang memadai',
-    ],
-    cause:
-      'Kondisi lingkungan kerja yang tidak optimal meningkatkan probabilitas kecelakaan. ' +
-      'Permukaan licin merupakan penyebab utama insiden terpeleset yang dapat menyebabkan ' +
-      'cedera serius. Absennya rambu peringatan memperparah kondisi ini.',
-    recommendations: [
-      'Pasang tanda peringatan "Lantai Licin" segera di seluruh area terdampak',
-      'Gunakan alas karet anti-slip atau material pengikat di area kerja',
-      'Pastikan semua pekerja menggunakan safety shoes berstandar anti-slip',
-      'Perbaiki sistem drainase dan bersihkan tumpahan secara berkala',
-      'Lakukan inspeksi kondisi lantai setiap awal dan akhir shift',
-    ],
-    references: [
-      {
-        text: 'OSHA 1926.502: Permukaan kerja licin wajib diberi tanda peringatan dan ditangani segera.',
-        source: 'OSHA Standard 1926.502',
-      },
-      {
-        text: 'Permenaker No.5/1996: Setiap pekerja wajib menggunakan Alat Pelindung Diri yang sesuai.',
-        source: 'Permenaker No. 5 Tahun 1996',
-      },
-    ],
-  },
-  rendah: {
-    level: 'RENDAH',
-    caption: 'Risiko rendah — pertahankan kondisi dan monitoring rutin',
-    score: 18,
-    findings: [
-      'Tidak ditemukan indikator bahaya signifikan dalam laporan',
-      'Kondisi kerja dalam batas normal dan terkontrol',
-      'APD dan prosedur K3 tampak dipatuhi',
-    ],
-    cause:
-      'Berdasarkan analisis teks laporan, tidak teridentifikasi faktor risiko tinggi yang ' +
-      'memerlukan tindakan segera. Aktivitas berjalan sesuai prosedur standar K3 yang berlaku.',
-    recommendations: [
-      'Pertahankan dan tingkatkan budaya keselamatan yang sudah berjalan baik',
-      'Lakukan toolbox meeting K3 harian sebelum memulai aktivitas kerja',
-      'Dokumentasikan setiap near-miss sebagai bahan pembelajaran dan perbaikan',
-      'Jadwalkan pelatihan penyegaran K3 secara berkala untuk semua pekerja',
-      'Pastikan sertifikasi K3 semua pekerja masih berlaku dan diperbarui tepat waktu',
-    ],
-    references: [
-      {
-        text: 'SNI ISO 45001:2018: Sistem Manajemen K3 yang baik mencakup pemantauan dan tinjauan berkala.',
-        source: 'SNI ISO 45001:2018',
-      },
-      {
-        text: 'UU No.1 Tahun 1970: Pengusaha wajib memelihara kondisi lingkungan kerja yang aman dan sehat.',
-        source: 'UU No. 1 Tahun 1970',
-      },
-    ],
-  },
-};
 
 // ═══════════════════════════════════════════════════
 //  UTILITIES
@@ -161,6 +39,7 @@ function onInputChange() {
   const badge = document.getElementById('char-badge');
   badge.textContent = val.length + ' karakter';
   badge.classList.toggle('active', val.length >= 20);
+  clearAnalysisError();
 }
 
 function clearInput() {
@@ -169,16 +48,43 @@ function clearInput() {
   document.getElementById('report-input').focus();
 }
 
-function loadSample() {
-  const ta = document.getElementById('report-input');
-  ta.value = '';
-  let i = 0;
-  const interval = setInterval(() => {
-    ta.value += SAMPLE_REPORT[i];
+function showAnalysisError(message) {
+  const error = document.getElementById('analysis-error');
+  error.textContent = message;
+  error.hidden = false;
+}
+
+function clearAnalysisError() {
+  const error = document.getElementById('analysis-error');
+  error.textContent = '';
+  error.hidden = true;
+}
+
+async function loadSample() {
+  const button = document.getElementById('btn-sample');
+  button.disabled = true;
+  clearAnalysisError();
+
+  try {
+    const response = await fetch('http://localhost:5000/api/sample');
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Server error: ${response.status}`);
+    }
+    if (typeof data.laporan !== 'string' || !data.laporan.trim()) {
+      throw new Error('Backend tidak mengirim contoh laporan yang valid.');
+    }
+
+    const textarea = document.getElementById('report-input');
+    textarea.value = data.laporan.trim();
     onInputChange();
-    i++;
-    if (i >= SAMPLE_REPORT.length) clearInterval(interval);
-  }, 14);
+    textarea.focus();
+  } catch (error) {
+    console.error('[SIGAP AI] Gagal memuat contoh laporan:', error);
+    showAnalysisError('Contoh laporan gagal dimuat. Pastikan backend SIGAP AI sedang berjalan.');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 // Ctrl+Enter shortcut
@@ -197,17 +103,21 @@ const STEP_LABELS = [
   'Menyusun rekomendasi tindakan...',
 ];
 
-async function runLoadingSteps() {
+let loadingRunId = 0;
+
+async function runLoadingSteps(runId) {
   const stepIds = ['step-1', 'step-2', 'step-3', 'step-4'];
   const loaderText = document.getElementById('loader-text');
 
   for (let i = 0; i < stepIds.length; i++) {
     await delay(420 + i * 480);
+    if (runId !== loadingRunId) return;
     if (i > 0) document.getElementById(stepIds[i - 1]).className = 'pipeline-step done';
     document.getElementById(stepIds[i]).className = 'pipeline-step active';
     loaderText.textContent = STEP_LABELS[i];
   }
   await delay(380);
+  if (runId !== loadingRunId) return;
   document.getElementById(stepIds[stepIds.length - 1]).className = 'pipeline-step done';
 }
 
@@ -227,22 +137,20 @@ async function analyzeReport() {
 
   // Validasi minimal karakter
   if (input.length < 20) {
+    setUIState('idle');
+    showAnalysisError('Masukkan laporan minimal 20 karakter agar dapat dianalisis.');
     shakeInputCard();
     return;
   }
 
+  clearAnalysisError();
+
   // ── Set state: loading ──
   setUIState('loading');
   resetSteps();
-  runLoadingSteps();
+  loadingRunId += 1;
+  runLoadingSteps(loadingRunId);
 
-  // ─────────────────────────────────────────────────
-  //  OPTION A — Hubungkan ke Python Backend
-  //  Uncomment blok ini saat backend siap
-  //  Expected response:
-  //  { level, penyebab, rekomendasi, referensi, temuan }
-  // ─────────────────────────────────────────────────
-  
   try {
     const interactionRequestId = typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
@@ -256,56 +164,19 @@ async function analyzeReport() {
       body: JSON.stringify({ laporan: input }),
     });
 
-    if (!response.ok) throw new Error('Server error: ' + response.status);
-
     const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Server error: ${response.status}`);
+    }
     await delay(500); // beri waktu animasi step selesai
 
     const mappedData = mapBackendResponse(data);
     renderResult(mappedData, input);
-    return;
-
-  } catch (err) {
-    console.warn('[SIGAP AI] Backend tidak tersedia, fallback ke demo mode:', err.message);
-    // Fallback ke demo mode jika backend tidak tersedia
+  } catch (error) {
+    console.error('[SIGAP AI] Gagal menganalisis laporan:', error);
+    setUIState('idle');
+    showAnalysisError('Analisis gagal. Periksa koneksi backend, lalu coba lagi.');
   }
-  
-
-  // ─────────────────────────────────────────────────
-  //  OPTION B — Demo Mode (aktif secara default)
-  //  Menentukan dummy result berdasarkan konten input
-  // ─────────────────────────────────────────────────
-  //await delay(2400); // simulasi waktu proses
-
-  // const demoResult = determineDemoResult(input);
-  // renderResult(demoResult, input);
-}
-
-// ═══════════════════════════════════════════════════
-//  DEMO RESULT SELECTOR
-//  Pilih dummy data berdasarkan keyword sederhana
-// ═══════════════════════════════════════════════════
-
-function determineDemoResult(text) {
-  const t = text.toLowerCase();
-
-  const highKeywords = [
-    'tidak menggunakan helm', 'tanpa helm', 'tanpa harness', 'tanpa apd',
-    'ketinggian', 'bahan kimia', 'listrik', 'kabel', 'tidak ada pengawas',
-    'pengelasan', 'las', 'api', 'kebakaran',
-  ];
-
-  const medKeywords = [
-    'licin', 'becek', 'tumpahan', 'basah', 'kurang ventilasi',
-    'tidak ada rambu', 'tanpa tanda peringatan',
-  ];
-
-  const highMatch = highKeywords.filter(k => t.includes(k)).length;
-  const medMatch  = medKeywords.filter(k => t.includes(k)).length;
-
-  if (highMatch >= 1)       return DUMMY_RESULTS.tinggi;
-  if (medMatch  >= 1)       return DUMMY_RESULTS.sedang;
-  return DUMMY_RESULTS.rendah;
 }
 
 // ═══════════════════════════════════════════════════
@@ -332,12 +203,13 @@ function getCaptionForLevel(level) {
     TINGGI: 'Risiko sangat tinggi — tindakan segera diperlukan',
     SEDANG: 'Risiko moderat — pengendalian segera dibutuhkan',
     RENDAH: 'Risiko rendah — pertahankan kondisi dan monitoring rutin',
+    'TIDAK DAPAT DINILAI': 'Belum ada kecocokan yang cukup untuk menentukan tingkat risiko',
   };
   return map[level] || '—';
 }
 
 function getScoreForLevel(level) {
-  return { TINGGI: 90, SEDANG: 58, RENDAH: 18 }[level] || 18;
+  return { TINGGI: 90, SEDANG: 58, RENDAH: 18, 'TIDAK DAPAT DINILAI': 0 }[level] ?? 18;
 }
 
 // ═══════════════════════════════════════════════════
@@ -346,20 +218,23 @@ function getScoreForLevel(level) {
 // ═══════════════════════════════════════════════════
 
 function renderResult(data, inputText) {
-  const levelLower = data.level.toLowerCase();
-  const colorMap   = { rendah: '#22C55E', sedang: '#F59E0B', tinggi: '#EF4444' };
-  const dotClass   = { rendah: 'finding-dot--green', sedang: 'finding-dot--amber', tinggi: 'finding-dot--red' };
+  const isUnassessed = data.level === 'TIDAK DAPAT DINILAI';
+  const levelLower = isUnassessed ? 'unassessed' : data.level.toLowerCase();
+  const colorMap   = { rendah: '#22C55E', sedang: '#F59E0B', tinggi: '#EF4444', unassessed: '#94A3B8' };
+  const dotClass   = { rendah: 'finding-dot--green', sedang: 'finding-dot--amber', tinggi: 'finding-dot--red', unassessed: 'finding-dot--neutral' };
 
   // ── Risk Banner ──
   const badge = document.getElementById('risk-badge-large');
-  badge.textContent  = data.level;
+  badge.textContent  = isUnassessed ? 'BELUM DINILAI' : data.level;
   badge.className    = 'risk-badge-large ' + levelLower;
 
+  document.querySelector('.risk-banner__label').textContent =
+    isUnassessed ? 'Status Penilaian' : 'Level Risiko Terdeteksi';
   document.getElementById('risk-caption').textContent = data.caption;
 
   // Activate correct indicator
   document.querySelectorAll('.risk-indicator').forEach(el => {
-    el.classList.toggle('active', el.dataset.level === levelLower);
+    el.classList.toggle('active', !isUnassessed && el.dataset.level === levelLower);
   });
 
   // ── Gauge ──
@@ -424,6 +299,7 @@ function renderResult(data, inputText) {
 // ═══════════════════════════════════════════════════
 
 function setUIState(state) {
+  if (state !== 'loading') loadingRunId += 1;
   const btnAnalyze     = document.getElementById('analyze-btn');
   const loadingSection = document.getElementById('loading-section');
   const resultSection  = document.getElementById('result-section');
@@ -455,7 +331,9 @@ function setUIState(state) {
     default:
       btnAnalyze.disabled = false;
       loadingSection.classList.remove('active');
+      loadingSection.setAttribute('aria-hidden', 'true');
       resultSection.classList.remove('active');
+      resultSection.setAttribute('aria-hidden', 'true');
       statusBadge.classList.remove('analyzing');
       statusText.textContent = 'SYSTEM READY';
       break;

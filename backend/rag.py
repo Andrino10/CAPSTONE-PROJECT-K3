@@ -1,100 +1,176 @@
-from sentence_transformers import SentenceTransformer
+from collections import Counter
+import math
+from pathlib import Path
+import re
+
 import faiss
 import numpy as np
-from pathlib import Path
+from sentence_transformers import SentenceTransformer
 
-print("Loading models...")
 
-# =========================
-# 1. Load Embedding Model
-# =========================
-embed_model = SentenceTransformer('all-MiniLM-L6-v2')
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# =========================
-# 2. Load Knowledge Base
-# =========================
 docs = []
 structured_data = []
-
 KNOWLEDGE_PATH = Path(__file__).with_name("knowledge.txt")
 
-with KNOWLEDGE_PATH.open("r", encoding="utf-8") as f:
-    for line in f:
-        line = line.strip()
-        if line:
-            # Only index records that have matching structured metadata.  The
-            # first row of knowledge.txt is a header and must not shift FAISS
-            # indices relative to structured_data.
-            parts = line.split("|")
-            if len(parts) == 4:
-                kondisi = parts[0].strip()
-                risiko = parts[1].strip()
-                penjelasan = parts[2].strip()
-                solusi = parts[3].strip()
+with KNOWLEDGE_PATH.open("r", encoding="utf-8") as file:
+    for line in file:
+        parts = [part.strip() for part in line.strip().split("|")]
+        if len(parts) != 4 or parts[0] == "[KONDISI]":
+            continue
 
-                if (kondisi, risiko, penjelasan, solusi) == (
-                    "[KONDISI]", "[RISIKO]", "[PENJELASAN]", "[SOLUSI]"
-                ):
-                    continue
+        kondisi, risiko, penjelasan, solusi = parts
+        docs.append(kondisi)
+        structured_data.append({
+            "kondisi": kondisi,
+            "risiko": risiko,
+            "penjelasan": penjelasan,
+            "solusi": solusi,
+        })
 
-                docs.append(line)
-                structured_data.append({
-                    "kondisi": kondisi,
-                    "risiko": risiko,
-                    "penjelasan": penjelasan,
-                    "solusi": solusi
-                })
+doc_embeddings = np.asarray(embed_model.encode(docs), dtype="float32")
+index = faiss.IndexFlatL2(doc_embeddings.shape[1])
+index.add(doc_embeddings)
 
-# =========================
-# 3. Embedding Knowledge
-# =========================
-doc_embeddings = embed_model.encode(docs)
-
-dimension = doc_embeddings.shape[1]
-index = faiss.IndexFlatL2(dimension)
-index.add(np.array(doc_embeddings))
-
-print("Sistem siap!\n")
+STOP_WORDS = {
+    "agar", "akan", "area", "atau", "bagaimana", "bahaya", "bahwa",
+    "bekerja", "berisiko", "dalam", "dan", "dari", "dengan", "di", "ini",
+    "itu", "karena", "ke", "kepada", "kondisi", "kerja", "lebih", "lokasi",
+    "melakukan", "memadai", "menggunakan", "oleh", "pada", "pekerja",
+    "pekerjaan", "risiko", "sebagai", "sehingga", "saat", "secara", "tanpa",
+    "tempat", "terhadap", "tidak", "untuk", "yang",
+}
 
 
-# =========================
-# 4. Analisis Risiko (Hybrid)
-# =========================
-def analisis_risiko(query, retrieved_indexes):
-    teks = query.lower()
+def _tokenize(text):
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", text.lower())
+        if len(token) > 2 and token not in STOP_WORDS
+    }
 
-    hasil_temuan = []
-    risiko_tertinggi = "RENDAH"
 
-    for idx in retrieved_indexes:
-        data = structured_data[idx]
-        hasil_temuan.append(data)
+doc_tokens = [_tokenize(item["kondisi"]) for item in structured_data]
+document_frequency = Counter(token for tokens in doc_tokens for token in tokens)
+inverse_document_frequency = {
+    token: math.log((len(docs) + 1) / (frequency + 1)) + 1
+    for token, frequency in document_frequency.items()
+}
+MIN_RELEVANCE_SCORE = 0.45
 
-        # Tentukan level tertinggi
-        if data["risiko"] == "TINGGI":
-            risiko_tertinggi = "TINGGI"
-        elif data["risiko"] == "SEDANG" and risiko_tertinggi != "TINGGI":
-            risiko_tertinggi = "SEDANG"
 
+def _score_reference(query, query_embedding, document_index):
+    query_vector = np.asarray(query_embedding[0], dtype="float32")
+    document_vector = doc_embeddings[document_index]
+    denominator = float(np.linalg.norm(query_vector) * np.linalg.norm(document_vector))
+    if denominator == 0:
+        raise ValueError("Embedding laporan atau knowledge tidak valid.")
+
+    semantic_similarity = float(np.dot(query_vector, document_vector) / denominator)
+    query_tokens = _tokenize(query)
+    total_weight = sum(inverse_document_frequency.get(token, 1) for token in query_tokens)
+    if total_weight:
+        shared_tokens = query_tokens & doc_tokens[document_index]
+        lexical_coverage = (
+            sum(inverse_document_frequency.get(token, 1) for token in shared_tokens)
+            / total_weight
+        )
+    else:
+        lexical_coverage = 0.0
+
+    relevance_score = 0.45 * semantic_similarity + 0.55 * lexical_coverage
+    return relevance_score, semantic_similarity, lexical_coverage
+
+
+def _rank_references(query, k):
+    if not isinstance(k, int) or isinstance(k, bool) or k < 1:
+        raise ValueError("Jumlah referensi harus berupa bilangan bulat positif.")
+
+    query_embedding = np.asarray(embed_model.encode([query]), dtype="float32")
+    all_distances, all_indexes = index.search(query_embedding, len(docs))
+    distances_by_index = {
+        int(document_index): float(distance)
+        for distance, document_index in zip(all_distances[0], all_indexes[0])
+    }
+
+    ranked = []
+    for document_index in all_indexes[0]:
+        document_index = int(document_index)
+        relevance_score, semantic_similarity, lexical_coverage = _score_reference(
+            query, query_embedding, document_index
+        )
+        ranked.append((
+            relevance_score,
+            semantic_similarity,
+            lexical_coverage,
+            distances_by_index[document_index],
+            document_index,
+        ))
+
+    ranked.sort(key=lambda result: (-result[0], -result[1], result[4]))
+    selected = ranked[:min(k, len(ranked))]
+    distances = np.asarray([[result[3] for result in selected]], dtype="float32")
+    indexes = np.asarray([[result[4] for result in selected]], dtype="int64")
+    scores = [(result[0], result[2]) for result in selected]
+    return query_embedding, distances, indexes, scores
+
+
+def retrieve_references(query, k=2):
+    """Return references ranked by condition similarity and informative word overlap."""
+    query_embedding, distances, indexes, _ = _rank_references(query, k)
+    return query_embedding, distances, indexes
+
+
+def analisis_risiko(_query, retrieved_indexes):
+    hasil_temuan = [structured_data[int(idx)] for idx in retrieved_indexes]
+    if not hasil_temuan:
+        return "TIDAK DAPAT DINILAI", []
+
+    risiko_tertinggi = max(
+        (data["risiko"] for data in hasil_temuan),
+        key={"RENDAH": 1, "SEDANG": 2, "TINGGI": 3}.get,
+    )
     return risiko_tertinggi, hasil_temuan
 
 
-# =========================
-# 5. RAG SYSTEM
-# =========================
-def retrieve_references(query, k=2):
-    """Retrieve references with the same embedding model and FAISS index."""
-    query_vec = embed_model.encode([query])
-    distances, indexes = index.search(np.array(query_vec), k=k)
-    return query_vec, distances, indexes
+def _split_query(query):
+    parts = re.split(
+        r"(?<=[.!?;])\s+|\s+(?:dan|serta|sedangkan|sementara)\s+",
+        query,
+        flags=re.IGNORECASE,
+    )
+    return [part.strip() for part in parts if part.strip()]
 
 
 def rag_system(query, include_retrieval=False):
-    _, distances, indexes = retrieve_references(query, k=2)
+    query_embedding = np.asarray(embed_model.encode([query]), dtype="float32")[0]
+    matching_results = []
+    seen_indexes = set()
 
-    # Ambil 2 referensi terbaik
-    retrieved_indexes = indexes[0]
+    for query_part in _split_query(query):
+        _, _, indexes, scores = _rank_references(query_part, k=2)
+        top_score = scores[0][0]
+        top_risk = structured_data[int(indexes[0][0])]["risiko"]
+        for rank, (document_index, (relevance_score, _)) in enumerate(
+            zip(indexes[0], scores)
+        ):
+            document_index = int(document_index)
+            if relevance_score < MIN_RELEVANCE_SCORE:
+                continue
+            if rank > 0 and (
+                top_score - relevance_score > 0.1
+                or structured_data[document_index]["risiko"] != top_risk
+            ):
+                continue
+            if document_index in seen_indexes:
+                continue
 
+            seen_indexes.add(document_index)
+            distance = float(np.sum((query_embedding - doc_embeddings[document_index]) ** 2))
+            matching_results.append((distance, document_index))
+
+    retrieved_indexes = [document_index for _, document_index in matching_results]
     level, temuan = analisis_risiko(query, retrieved_indexes)
 
     if include_retrieval:
@@ -102,9 +178,9 @@ def rag_system(query, include_retrieval=False):
             {
                 "rank": rank,
                 "faiss_squared_l2_distance": float(distance),
-                "document": data,
+                "document": structured_data[document_index],
             }
-            for rank, (distance, data) in enumerate(zip(distances[0], temuan), start=1)
+            for rank, (distance, document_index) in enumerate(matching_results, start=1)
         ]
         return level, temuan, retrieval_contexts
 

@@ -99,7 +99,7 @@
             <button class="toolbar-btn" id="btn-clear" onclick="clearInput()" title="Bersihkan input">
               🗑️ Hapus
             </button>
-            <button class="toolbar-btn toolbar-btn--sample" onclick="loadSample()" title="Muat contoh laporan">
+            <button class="toolbar-btn toolbar-btn--sample" id="btn-sample" onclick="loadSample()" title="Muat satu contoh laporan">
               📄 Contoh
             </button>
           </div>
@@ -109,10 +109,11 @@
         <textarea
           id="report-input"
           class="report-textarea"
-          placeholder="Masukkan laporan aktivitas kerja lapangan...&#10;&#10;Contoh: Pekerja melakukan pengelasan di ketinggian 10 meter tanpa menggunakan harness dan helm pengaman. Lantai area kerja dalam kondisi licin akibat tumpahan oli. Tidak tersedia APAR di sekitar lokasi kerja..."
+          placeholder="Masukkan laporan aktivitas kerja lapangan...&#10;&#10;Contoh: Kabel listrik terbuka berada di dekat pekerja."
           spellcheck="false"
           oninput="onInputChange()"
         ></textarea>
+        <p class="form-error" id="analysis-error" role="alert" hidden></p>
 
         <!-- Footer bar -->
         <div class="input-footer">

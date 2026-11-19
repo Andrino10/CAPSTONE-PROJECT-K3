@@ -3,8 +3,12 @@
 ## Ruang lingkup
 
 Modul ini mengevaluasi retrieval SIGAP AI yang aktual: `all-MiniLM-L6-v2`,
-FAISS `IndexFlatL2`, dan dua hasil teratas (`k=2`). Tidak ada perubahan pada
-endpoint Flask atau format respons aplikasi.
+FAISS `IndexFlatL2`, embedding hanya pada kolom kondisi knowledge, serta
+peringkat ulang berdasarkan kemiripan semantik dan cakupan kata penting.
+Endpoint analisis memecah laporan pada batas kalimat dan penghubung antarkondisi,
+lalu mengambil satu referensi paling kuat untuk setiap bagian. Hasil di bawah
+ambang kecocokan ditolak; laporan tanpa kecocokan yang cukup diberi status
+`TIDAK DAPAT DINILAI`.
 
 ## Dataset
 
@@ -25,10 +29,15 @@ yang terdefinisi.
 
 ## Metode
 
-`similarity_eval_all.py` melakukan pencarian yang sama dengan `rag.py` lalu
-menulis dua baris per laporan ke `hasil_similarity.csv`. Nilai cosine dihitung
-sebagai `dot(q, d) / (||q|| ||d||)`. Kolom `faiss_squared_l2_distance` adalah
-jarak kuadrat L2 dari FAISS, sehingga bukan cosine similarity.
+`similarity_eval_all.py` memakai helper retrieval yang sama dengan `rag.py`
+lalu menulis dua kandidat teratas untuk seluruh laporan ke
+`hasil_similarity.csv`. Endpoint analisis juga memeriksa setiap kalimat atau
+bagian bahaya secara terpisah agar beberapa kondisi dalam satu laporan dapat
+ditampilkan tanpa menambahkan referensi lemah dari kalimat lain. Nilai cosine
+dihitung sebagai `dot(q, d) / (||q|| ||d||)`. Kolom
+`faiss_squared_l2_distance` adalah jarak kuadrat L2 dari FAISS, sehingga bukan
+cosine similarity. Evaluasi dataset mengukur peringkat kandidat; ia tidak
+mengukur ambang kecocokan atau keputusan status tidak dapat dinilai.
 
 `ragas_metrics.py` menghitung retrieval berbasis `is_ground_truth`:
 
@@ -54,8 +63,9 @@ preflight dan tidak pernah memanggil layanan berbayar.
 
 Setiap respons `/api/analyze` yang berhasil dicatat backend ke
 `interaction_logs.jsonl`. Satu baris JSONL berisi ID unik, waktu UTC, laporan
-asli, respons API yang benar-benar dikirim, dan dua konteks retrieval beserta
-rank dan squared-L2. Header `X-Interaction-Request-ID` dari frontend digunakan
+asli, respons API yang benar-benar dikirim, dan hingga dua konteks retrieval
+beserta rank dan squared-L2. Konteks kosong menandakan laporan belum cukup
+cocok. Header `X-Interaction-Request-ID` dari frontend digunakan
 untuk menghindari duplikasi saat permintaan yang sama diproses ulang. Log tidak
 menyimpan header lain, token, kata sandi, alamat IP, atau identitas klien.
 

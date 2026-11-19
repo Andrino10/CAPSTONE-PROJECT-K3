@@ -411,6 +411,11 @@ body {
   background: var(--yellow-dim);
 }
 
+.toolbar-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 /* ── Textarea ── */
 .report-textarea {
   width: 100%;
@@ -430,6 +435,12 @@ body {
 .report-textarea::placeholder {
   color: var(--text-muted);
   font-style: italic;
+}
+
+.form-error {
+  margin: 0 20px 12px;
+  color: #FCA5A5;
+  font-size: 13px;
 }
 
 /* ── Input Footer ── */
@@ -677,6 +688,14 @@ body {
   box-shadow: 0 0 28px rgba(239,68,68,0.15);
 }
 
+.risk-badge-large.unassessed {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1.5px solid rgba(148, 163, 184, 0.3);
+  color: #CBD5E1;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
 /* ── Gauge ── */
 .risk-banner__center {
   display: flex;
@@ -856,6 +875,7 @@ body {
 .finding-dot--red    { background: var(--red);   box-shadow: 0 0 6px var(--red-dim); }
 .finding-dot--amber  { background: var(--amber); box-shadow: 0 0 6px var(--amber-dim); }
 .finding-dot--green  { background: var(--green); box-shadow: 0 0 6px var(--green-dim); }
+.finding-dot--neutral { background: #94A3B8; }
 
 /* ── Cause ── */
 .cause-text {

@@ -37,7 +37,7 @@ def _context_text(document: dict[str, Any]) -> str:
     required = ("kondisi", "risiko", "penjelasan", "solusi")
     if not isinstance(document, dict) or any(not document.get(key) for key in required):
         raise InteractionLogError("Dokumen konteks interaksi tidak lengkap.")
-    return " | ".join(str(document[key]) for key in required)
+    return str(document["kondisi"])
 
 
 def evaluate_interactions(
@@ -61,7 +61,7 @@ def evaluate_interactions(
             raise InteractionLogError("Record interaksi tidak memiliki konteks retrieval.")
 
         level = response.get("level")
-        if level not in {"RENDAH", "SEDANG", "TINGGI"}:
+        if level not in {"RENDAH", "SEDANG", "TINGGI", "TIDAK DAPAT DINILAI"}:
             raise InteractionLogError(f"Level risiko tidak valid pada interaksi {interaction_id}.")
         risk_distribution[level] += 1
         query_embedding = np.asarray(rag.embed_model.encode([laporan]), dtype="float32")[0]
