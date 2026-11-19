@@ -1,0 +1,13 @@
+sample_id,laporan,ground_truth_kondisi,ground_truth_risiko,data_asal
+S01,Pekerja tidak memakai helm di proyek konstruksi,Pekerja tidak menggunakan helm di area konstruksi,TINGGI,sintetis; ground truth dari knowledge.txt
+S02,Lantai menjadi licin setelah hujan dan pekerja berisiko terpeleset,Area kerja licin akibat hujan,SEDANG,sintetis; ground truth dari knowledge.txt
+S03,Pekerja melakukan pekerjaan tinggi tanpa harness pengaman,Pekerja bekerja di ketinggian tanpa safety harness,TINGGI,sintetis; ground truth dari knowledge.txt
+S04,Area kerja gelap karena pencahayaan tidak cukup,Pencahayaan area kerja kurang memadai,SEDANG,sintetis; ground truth dari knowledge.txt
+S05,Kabel listrik terbuka berada di dekat pekerja,Kabel listrik terbuka,TINGGI,sintetis; ground truth dari knowledge.txt
+S06,Tidak ada briefing keselamatan sebelum aktivitas dimulai,Tidak ada briefing keselamatan sebelum kerja,SEDANG,sintetis; ground truth dari knowledge.txt
+S07,Petugas tidak memakai rompi reflektif di jalur kendaraan,Pekerja tidak memakai rompi reflektif,RENDAH,sintetis; ground truth dari knowledge.txt
+S08,Tangga goyah dan tidak stabil saat digunakan,Tangga tidak stabil,TINGGI,sintetis; ground truth dari knowledge.txt
+S09,Pekerja mengangkat benda berat dengan postur yang keliru,Mengangkat beban berat tanpa teknik yang benar,SEDANG,sintetis; ground truth dari knowledge.txt
+S10,Bahan kimia dipakai tanpa perlindungan diri yang memadai,Paparan bahan kimia tanpa pelindung,TINGGI,sintetis; ground truth dari knowledge.txt
+S11,Lokasi kerja dingin sehingga berisiko mengganggu kesehatan,Suhu terlalu dingin,RENDAH,sintetis; ground truth dari knowledge.txt
+S12,Pekerja tidak menggunakan masker pada area penuh debu,Tidak menggunakan masker di area berdebu,SEDANG,sintetis; ground truth dari knowledge.txt
