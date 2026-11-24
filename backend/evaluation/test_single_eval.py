@@ -114,19 +114,20 @@ class KnowledgeBaseAlignmentTests(unittest.TestCase):
 
 
 class RagasIntegrationTests(unittest.TestCase):
-    def test_unconfigured_evaluator_is_unavailable_not_fake_score(self):
+    def test_context_ground_truth_computes_only_non_llm_metrics(self):
         from evaluation.ragas_eval import evaluate_ragas
 
-        with patch.dict("os.environ", {}, clear=True):
-            result = evaluate_ragas(
-                question="Kabel listrik terbuka",
-                answer="Matikan sumber listrik.",
-                contexts=["Kabel listrik terbuka"],
-                similarity_scores=[0.8, 0.6],
-            )
+        result = evaluate_ragas(
+            question="Kabel listrik terbuka",
+            answer="Matikan sumber listrik.",
+            contexts=["Kabel listrik terbuka"],
+            ground_truth_context="Kabel listrik terbuka",
+            similarity_scores=[0.8, 0.6],
+        )
 
-        self.assertEqual(result["status"], "BELUM_TERSEDIA")
-        self.assertIsNone(result["context_precision"])
+        self.assertIn(result["status"], {"BERHASIL", "SEBAGIAN_BERHASIL"})
+        self.assertIsNotNone(result["context_precision"])
+        self.assertIsNotNone(result["context_recall"])
         self.assertIsNone(result["faithfulness"])
         self.assertAlmostEqual(result["average_similarity"], 0.7)
 

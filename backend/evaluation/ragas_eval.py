@@ -27,6 +27,18 @@ RAGAS_COLUMNS = [
 ]
 
 
+def ground_truth_for_query(question: str) -> tuple[str | None, str | None]:
+    """Resolve approved context; answer correctness remains N/A without a reference answer."""
+    if not question.strip() or not DATASET_PATH.exists():
+        return None, None
+    with DATASET_PATH.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.DictReader(file):
+            if row.get("laporan", "").strip() == question.strip():
+                reference = row.get("ground_truth_kondisi", "").strip()
+                return (reference or None), None
+    return None, None
+
+
 def _score_in_range(value: Any) -> float | None:
     if value is None:
         return None
@@ -63,7 +75,7 @@ def ragas_status() -> dict[str, Any]:
     return {
         "available": True,
         "status": "TERSEDIA",
-        "detail": "RAGAS 0.4.3 tersedia; evaluator lokal dipilih melalui konfigurasi lingkungan.",
+        "detail": "RAGAS 0.4.3 tersedia untuk metrik non-generatif.",
         "ragas_version": ragas_version,
     }
 
@@ -73,10 +85,11 @@ def evaluate_ragas(
     question: str,
     answer: str,
     contexts: list[str],
-    ground_truth: str | None = None,
+    ground_truth_context: str | None = None,
+    ground_truth_answer: str | None = None,
     similarity_scores: list[float] | None = None,
 ) -> dict[str, Any]:
-    """Evaluate one RAG result if an approved local evaluator is configured."""
+    """Evaluate RAGAS metrics that do not require an additional generative model."""
     scores = [_score_in_range(score) for score in (similarity_scores or [])]
     valid_scores = [score for score in scores if score is not None]
     result: dict[str, Any] = {
@@ -88,77 +101,76 @@ def evaluate_ragas(
         "faithfulness": None,
         "answer_relevancy": None,
         "answer_correctness": None,
-        "ground_truth": ground_truth or None,
+        "ground_truth": ground_truth_answer or None,
+        "ground_truth_context": ground_truth_context or None,
     }
 
     if not question.strip() or not answer.strip() or not contexts:
         result.update({"status": "BELUM_TERSEDIA", "status_detail": "Query, jawaban, atau konteks kosong."})
         return result
 
+    result.update({
+        "faithfulness": None,
+        "answer_relevancy": None,
+        "answer_correctness": None,
+        "status_detail_faithfulness":
+            "N/A: Faithfulness RAGAS memerlukan evaluator generatif.",
+        "status_detail_answer_relevancy":
+            "N/A: Answer Relevancy RAGAS memerlukan evaluator generatif.",
+        "status_detail_answer_correctness":
+            "N/A: Jawaban referensi dan evaluator generatif tidak digunakan.",
+        "status_detail_context_precision":
+            "N/A: Ground truth konteks tidak tersedia.",
+        "status_detail_context_recall":
+            "N/A: Ground truth konteks tidak tersedia.",
+    })
+
     try:
-        import os
-        if os.getenv("RAGAS_EVALUATOR", "").strip().lower() != "ollama":
-            result.update({
-                "status": "BELUM_TERSEDIA",
-                "status_detail": "Evaluator RAGAS lokal belum dikonfigurasi. Set RAGAS_EVALUATOR=ollama.",
-            })
-            return result
-
-        model = os.getenv("RAGAS_OLLAMA_MODEL", "").strip()
-        if not model:
-            result.update({
-                "status": "BELUM_TERSEDIA",
-                "status_detail": "Nama model Ollama belum dikonfigurasi. Set RAGAS_OLLAMA_MODEL.",
-            })
-            return result
-
-        from langchain_ollama import ChatOllama
-        from langchain_huggingface import HuggingFaceEmbeddings
         from ragas import evaluate
         from ragas.dataset_schema import EvaluationDataset, SingleTurnSample
-        from ragas.metrics import (
-            answer_correctness,
-            answer_relevancy,
-            context_precision,
-            context_recall,
-            faithfulness,
-        )
+        from ragas.metrics import NonLLMContextPrecisionWithReference, NonLLMContextRecall
 
-        llm = ChatOllama(model=model, base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
         sample = SingleTurnSample(
             user_input=question,
             response=answer,
             retrieved_contexts=contexts,
-            reference=ground_truth or None,
+            reference_contexts=[ground_truth_context] if ground_truth_context else None,
+            reference=ground_truth_answer or ground_truth_context or None,
         )
         dataset = EvaluationDataset(samples=[sample])
-        metrics = [answer_relevancy, faithfulness]
-        if ground_truth:
-            metrics.extend([context_precision, context_recall, answer_correctness])
+        metrics = []
+        if ground_truth_context:
+            metrics = [
+                NonLLMContextPrecisionWithReference(),
+                NonLLMContextRecall(),
+            ]
+        if not metrics:
+            result.update({
+                "status": "TIDAK_MEMENUHI_INPUT",
+                "status_detail":
+                    "N/A: Ground truth konteks tidak tersedia; Context Precision dan Context Recall tidak dihitung.",
+            })
+            return result
 
-        evaluation = evaluate(
-            dataset=dataset,
-            metrics=metrics,
-            llm=llm,
-            embeddings=embeddings,
-            raise_exceptions=True,
-        )
+        evaluation = evaluate(dataset=dataset, metrics=metrics, raise_exceptions=True)
         first = evaluation.scores[0]
-        for key, result_key in (
-            ("context_precision", "context_precision"),
-            ("context_recall", "context_recall"),
-            ("faithfulness", "faithfulness"),
-            ("answer_relevancy", "answer_relevancy"),
-            ("answer_correctness", "answer_correctness"),
-        ):
-            score = _score_in_range(first.get(key))
-            if score is not None:
-                result[result_key] = score
-
+        result["context_precision"] = _score_in_range(
+            first.get("non_llm_context_precision_with_reference")
+        )
+        result["context_recall"] = _score_in_range(
+            first.get("non_llm_context_recall")
+        )
+        result["status_detail_context_precision"] = (
+            "Dihitung RAGAS non-LLM menggunakan reference_contexts."
+        )
+        result["status_detail_context_recall"] = (
+            "Dihitung RAGAS non-LLM menggunakan reference_contexts."
+        )
         result.update({
-            "status": "BERHASIL",
-            "status_detail": "Evaluasi RAGAS berhasil dijalankan.",
+            "status": "SEBAGIAN_BERHASIL",
+            "status_detail":
+                "Context Precision dan Context Recall dihitung RAGAS tanpa model generatif; "
+                "metrik berbasis LLM ditandai N/A.",
         })
     except Exception as error:
         result.update({
@@ -179,7 +191,7 @@ def record_ragas_result(
     results_path: Path = RESULTS_PATH,
 ) -> None:
     """Append a valid RAGAS attempt to hasil_ragas.csv."""
-    if evaluation.get("status") != "BERHASIL":
+    if evaluation.get("status") not in {"BERHASIL", "SEBAGIAN_BERHASIL"}:
         return
     results_path.parent.mkdir(parents=True, exist_ok=True)
     exists = results_path.exists()
@@ -196,7 +208,7 @@ def record_ragas_result(
         "faithfulness": evaluation["faithfulness"],
         "answer_relevancy": evaluation["answer_relevancy"],
         "answer_correctness": evaluation["answer_correctness"],
-        "ground_truth": evaluation["ground_truth"],
+        "ground_truth": ground_truth or evaluation.get("ground_truth"),
         "status": evaluation["status"],
         "status_detail": evaluation["status_detail"],
         "ragas_version": importlib.metadata.version("ragas") if importlib.util.find_spec("ragas") else "",

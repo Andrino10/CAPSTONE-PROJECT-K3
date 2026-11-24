@@ -52,16 +52,11 @@ penyebab, atau rekomendasi K3 benar pada kondisi kerja nyata.
 
 ## RAGAS
 
-RAGAS 0.4.3 adalah dependency terintegrasi. Evaluasi runtime membutuhkan
-evaluator lokal yang dikonfigurasi secara terpisah:
-`RAGAS_EVALUATOR=ollama` dan `RAGAS_OLLAMA_MODEL=<nama model>`.
-Tanpa konfigurasi tersebut, skor RAGAS ditampilkan sebagai N/A/Belum tersedia
-dan tidak disimpan sebagai skor valid. Jawaban serta retrieval tetap bekerja.
-
-Answer Correctness dijalankan hanya jika ground truth tersedia. Model utama
-tetap memakai SentenceTransformer all-MiniLM-L6-v2 dan FAISS; evaluator Ollama
-digunakan hanya sebagai judge terpisah bila dikonfigurasi. Integrasi tidak
-menggunakan API OpenAI atau layanan berbayar secara otomatis.
+RAGAS 0.4.3 terintegrasi menggunakan metrik non-generatif yang didukung.
+Context Precision dan Context Recall dapat dihitung dengan referensi konteks.
+Faithfulness, Answer Relevancy, dan Answer Correctness ditampilkan N/A karena
+memerlukan evaluator generatif atau jawaban referensi yang tidak digunakan.
+Model utama tetap SentenceTransformer all-MiniLM-L6-v2 dan FAISS.
 
 ## Interaksi aktual dari frontend
 

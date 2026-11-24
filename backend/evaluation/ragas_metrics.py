@@ -102,7 +102,7 @@ def ragas_preflight(dataset_path: Path) -> tuple[bool, list[str]]:
 
     notes.append("Dataset memiliki laporan dan satu referensi acuan untuk retrieval.")
     notes.append("Dataset tidak memiliki jawaban acuan atau konteks acuan lengkap untuk metrik RAGAS standar.")
-    notes.append("Tidak ada evaluator LLM lokal atau layanan eksternal yang disetujui dan dikonfigurasi.")
+    notes.append("Tidak ada evaluator generatif; metrik LLM RAGAS ditandai N/A.")
     if os.getenv("OPENAI_API_KEY"):
         notes.append("OPENAI_API_KEY terdeteksi, tetapi tidak digunakan tanpa persetujuan pengguna.")
     return False, notes

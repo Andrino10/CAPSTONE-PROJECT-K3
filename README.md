@@ -44,7 +44,7 @@ Teknologi utama yang digunakan:
 | FAISS CPU 1.8.0 | Pencarian dokumen melalui `IndexFlatL2` |
 | NumPy 1.26.4 | Operasi embedding dan cosine similarity |
 | RAGAS 0.4.3 | Lapisan evaluasi retrieval dan jawaban |
-| Ollama melalui LangChain | Evaluator LLM lokal opsional |
+| RAGAS 0.4.3 | Framework evaluasi non-generatif untuk Context Precision dan Context Recall |
 | HTML, CSS, dan JavaScript | Antarmuka frontend statis |
 
 Node.js tidak digunakan oleh frontend proyek ini. Frontend dijalankan sebagai file statis atau melalui server web statis sederhana.
@@ -60,7 +60,7 @@ Node.js tidak digunakan oleh frontend proyek ini. Frontend dijalankan sebagai fi
 7. Penyusunan temuan, penyebab, tingkat risiko, dan rekomendasi.
 8. Penampilan retrieved documents beserta similarity.
 9. Evaluasi similarity rata-rata, maksimum, dan minimum.
-10. Evaluasi RAGAS opsional melalui evaluator Ollama lokal.
+10. Evaluasi RAGAS non-generatif untuk Context Precision dan Context Recall.
 11. Penyimpanan hasil retrieval dan interaksi ke CSV/JSONL.
 12. Dashboard evaluasi pada frontend dengan kartu nilai dan tabel retrieved documents.
 
@@ -196,21 +196,21 @@ Versi dependency yang tercatat pada `requirements.txt`:
 | LangChain | 1.3.11 |
 | LangChain Community | 0.4.2 |
 | LangChain Core | 1.4.8 |
-| LangChain Ollama | 1.1.0 |
 | LangChain HuggingFace | 1.2.2 |
 
 Beberapa package dapat memerlukan koneksi internet saat instalasi atau saat model Sentence Transformers pertama kali diunduh.
 
-### Kebutuhan Evaluator RAGAS
+### Keterbatasan Evaluator RAGAS
 
-Evaluator RAGAS tidak wajib untuk menjalankan sistem utama. Jika ingin menjalankan skor RAGAS:
+Implementasi saat ini tidak menambahkan Ollama, layanan LLM, atau API berbayar.
+Context Precision dan Context Recall dapat dihitung menggunakan metrik non-LLM
+RAGAS apabila ground truth konteks tersedia.
 
-- Perlu Ollama yang dapat diakses dari backend.
-- Perlu nama model Ollama yang mendukung penilaian teks.
-- Perlu koneksi ke endpoint Ollama.
-- Evaluator LLM dan embedding evaluator terpisah dari proses retrieval utama.
+Faithfulness, Answer Relevancy, dan Answer Correctness tidak dihitung karena:
 
-Tidak ada API key OpenAI atau layanan berbayar yang dikonfigurasi otomatis.
+- Faithfulness membutuhkan evaluator generatif.
+- Answer Relevancy membutuhkan pemodelan generatif untuk menghasilkan pertanyaan.
+- Answer Correctness membutuhkan jawaban referensi yang valid dan tidak tersedia di dataset saat ini.
 
 ## Instalasi
 
@@ -272,25 +272,8 @@ Jangan mengganti format kolom knowledge base menjadi format lain tanpa menyesuai
 
 FAISS dibangun di memori saat `backend/rag.py` dimuat. Tidak ada direktori penyimpanan index FAISS yang terpisah.
 
-Jika evaluator RAGAS lokal akan digunakan, konfigurasi dapat diberikan sebagai environment variable:
-
-Windows PowerShell:
-
-```powershell
-$env:RAGAS_EVALUATOR="ollama"
-$env:RAGAS_OLLAMA_MODEL="nama-model-ollama"
-$env:OLLAMA_BASE_URL="http://localhost:11434"
-```
-
-Linux atau macOS:
-
-```bash
-export RAGAS_EVALUATOR="ollama"
-export RAGAS_OLLAMA_MODEL="nama-model-ollama"
-export OLLAMA_BASE_URL="http://localhost:11434"
-```
-
-Tidak ada konversi API key OpenAI yang dilakukan otomatis.
+Tidak ada environment variable evaluator generatif yang digunakan.
+Tidak ada API key atau layanan berbayar yang dikonfigurasi otomatis.
 
 ## Menjalankan Program
 
@@ -410,7 +393,8 @@ Dari folder `backend`:
 python -m evaluation.ragas_eval
 ```
 
-Tanpa evaluator Ollama, perintah akan menyatakan RAGAS tidak dijalankan.
+Preflight ini hanya memeriksa package RAGAS dan kelengkapan dataset.
+Penghitungan runtime menggunakan metrik non-generatif, tanpa Ollama atau model tambahan.
 
 ### Format Data RAGAS
 
@@ -446,17 +430,12 @@ Dataset tersebut tidak menyediakan jawaban acuan lengkap atau konteks acuan leng
 
 Jika ground truth tidak tersedia, Answer Correctness tidak dihitung dan tidak disimpan sebagai skor valid.
 
-### Evaluator RAGAS Lokal
+### Evaluasi RAGAS Tanpa Model Tambahan
 
-Setelah Ollama dan model tersedia, evaluasi akan menggunakan konfigurasi berikut:
-
-```powershell
-$env:RAGAS_EVALUATOR="ollama"
-$env:RAGAS_OLLAMA_MODEL="nama-model-ollama"
-$env:OLLAMA_BASE_URL="http://localhost:11434"
-```
-
-Pastikan evaluasi dapat dipanggil ke endpoint Ollama sebelum menjalankan sistem. Kegagalan evaluator tidak menghentikan retrieval atau respons Flask.
+Implementasi saat ini tidak menyediakan Ollama, API LLM, atau model generatif.
+Context Precision dan Context Recall dihitung oleh RAGAS non-LLM hanya jika
+ground truth konteks tersedia. Faithfulness, Answer Relevancy, dan Answer
+Correctness ditampilkan sebagai N/A.
 
 ## Contoh Penggunaan
 
@@ -666,21 +645,12 @@ Baris header `[KONDISI] | [RISIKO] | [PENJELASAN] | [SOLUSI]` dilewati oleh pars
 
 Sistem dapat mengembalikan `TIDAK DAPAT DINILAI` jika laporan terlalu tidak relevan atau berada di bawah ambang kecocokan. Tambahkan detail aktivitas, lokasi, kondisi bahaya, atau APD pada laporan.
 
-### Evaluasi RAGAS Gagal
+### Evaluasi RAGAS Tidak Menghasilkan Skor
 
-Periksa:
-
-```powershell
-$env:RAGAS_EVALUATOR
-$env:RAGAS_OLLAMA_MODEL
-$env:OLLAMA_BASE_URL
-```
-
-Pastikan model Ollama dapat dijangkau:
-
-```powershell
-curl http://localhost:11434/api/tags
-```
+Jika Context Precision atau Context Recall kosong, periksa bahwa ground truth
+konteks tersedia pada dataset dan bahwa retrieved contexts tidak kosong.
+Faithfulness, Answer Relevancy, dan Answer Correctness harus tetap N/A karena
+implementasi tidak menggunakan evaluator generatif.
 
 Kegagalan RAGAS tidak mengubah hasil retrieval utama.
 

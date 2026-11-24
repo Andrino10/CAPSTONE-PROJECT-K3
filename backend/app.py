@@ -6,7 +6,7 @@ from flask_cors import CORS
 from rag import rag_system
 from rag import structured_data
 from evaluation.interaction_logger import record_interaction
-from evaluation.ragas_eval import evaluate_ragas, record_ragas_result
+from evaluation.ragas_eval import evaluate_ragas, ground_truth_for_query, record_ragas_result
 
 app = Flask(__name__)
 CORS(app)
@@ -73,11 +73,13 @@ def analyze():
         for context in retrieval_contexts
         if isinstance(context, dict) and isinstance(context.get("cosine_similarity"), (int, float))
     ]
+    ground_truth_context, ground_truth_answer = ground_truth_for_query(laporan)
     ragas_evaluation = evaluate_ragas(
         question=laporan,
         answer=jawaban_sistem,
         contexts=contexts,
-        ground_truth=None,
+        ground_truth_context=ground_truth_context,
+        ground_truth_answer=ground_truth_answer,
         similarity_scores=similarity_scores,
     )
     try:
@@ -86,7 +88,7 @@ def analyze():
             answer=jawaban_sistem,
             contexts=contexts,
             similarity_scores=similarity_scores,
-            ground_truth=None,
+            ground_truth=ground_truth_answer or ground_truth_context,
             evaluation=ragas_evaluation,
         )
     except Exception:

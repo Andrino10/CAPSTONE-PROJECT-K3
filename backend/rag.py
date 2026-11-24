@@ -116,7 +116,7 @@ def _rank_references(query, k):
     return query_embedding, distances, indexes, scores
 
 
-def retrieve_references(query, k=2):
+def retrieve_references(query, k=3):
     """Return references ranked by condition similarity and informative word overlap."""
     query_embedding, distances, indexes, _ = _rank_references(query, k)
     return query_embedding, distances, indexes

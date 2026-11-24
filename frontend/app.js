@@ -11,6 +11,10 @@
 
 'use strict';
 
+// Gunakan satu konfigurasi URL untuk Live Server dan backend Flask terpisah.
+const API_BASE_URL = window.SIGAP_API_BASE_URL
+  || 'http://localhost:5000';
+
 // ═══════════════════════════════════════════════════
 //  UTILITIES
 // ═══════════════════════════════════════════════════
@@ -66,7 +70,7 @@ async function loadSample() {
   clearAnalysisError();
 
   try {
-    const response = await fetch('http://localhost:5000/api/sample');
+    const response = await fetch(`${API_BASE_URL}/api/sample`);
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.error || `Server error: ${response.status}`);
@@ -155,7 +159,7 @@ async function analyzeReport() {
     const interactionRequestId = typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : `sigap-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    const response = await fetch('http://localhost:5000/api/analyze', {
+    const response = await fetch(`${API_BASE_URL}/api/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -304,18 +308,28 @@ function renderResult(data, inputText) {
   document.getElementById('evaluation-grid').innerHTML = cards.map(([key, value]) => {
     const available = typeof value === 'number' && Number.isFinite(value);
     const percent = available ? Math.round(value * 100) : null;
+    const reason = !available
+      ? (key === 'context_precision' ? ragas.status_detail_context_precision
+        : key === 'context_recall' ? ragas.status_detail_context_recall
+        : key === 'faithfulness' ? ragas.status_detail_faithfulness
+        : key === 'answer_relevancy' ? ragas.status_detail_answer_relevancy
+        : key === 'answer_correctness' ? ragas.status_detail_answer_correctness
+        : 'Tidak tersedia')
+      : '';
     return `
       <div class="metric-card">
         <span class="metric-card__label">${metricLabels[key]}</span>
         <strong class="metric-card__value">${available ? percent + '%' : 'N/A'}</strong>
-        <span class="metric-card__raw">${available ? value.toFixed(4) : 'Tidak tersedia'}</span>
+        <span class="metric-card__raw">${available ? value.toFixed(4) : (reason || 'Tidak tersedia')}</span>
       </div>`;
   }).join('');
 
   document.getElementById('evaluation-status').textContent =
     ragas.status === 'BERHASIL'
       ? 'Status RAGAS: BERHASIL'
-      : `Status RAGAS: ${ragas.status_detail || 'Belum tersedia'}`;
+      : ragas.status === 'SEBAGIAN_BERHASIL'
+        ? 'Status RAGAS: SEBAGIAN BERHASIL'
+        : `Status RAGAS: ${ragas.status_detail || 'Belum tersedia'}`;
 
   document.getElementById('retrieval-table-body').innerHTML =
     data.retrievedDocuments.length
