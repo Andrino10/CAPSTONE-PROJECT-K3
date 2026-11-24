@@ -6,6 +6,7 @@ from flask_cors import CORS
 from rag import rag_system
 from rag import structured_data
 from evaluation.interaction_logger import record_interaction
+from evaluation.ragas_eval import evaluate_ragas, record_ragas_result
 
 app = Flask(__name__)
 CORS(app)
@@ -58,12 +59,61 @@ def analyze():
         penyebab = " ".join(penyebab)
         referensi = "Knowledge SIGAP AI"
 
+    jawaban_sistem = " ".join([
+        penyebab if isinstance(penyebab, str) else " ",
+        " ".join(rekomendasi) if isinstance(rekomendasi, list) else str(rekomendasi),
+    ]).strip()
+    contexts = [
+        str(context["document"]["kondisi"])
+        for context in retrieval_contexts
+        if isinstance(context, dict) and isinstance(context.get("document"), dict)
+    ]
+    similarity_scores = [
+        float(context["cosine_similarity"])
+        for context in retrieval_contexts
+        if isinstance(context, dict) and isinstance(context.get("cosine_similarity"), (int, float))
+    ]
+    ragas_evaluation = evaluate_ragas(
+        question=laporan,
+        answer=jawaban_sistem,
+        contexts=contexts,
+        ground_truth=None,
+        similarity_scores=similarity_scores,
+    )
+    try:
+        record_ragas_result(
+            question=laporan,
+            answer=jawaban_sistem,
+            contexts=contexts,
+            similarity_scores=similarity_scores,
+            ground_truth=None,
+            evaluation=ragas_evaluation,
+        )
+    except Exception:
+        app.logger.exception("Gagal mencatat hasil evaluasi RAGAS")
+
     response_payload = {
         "level": level,
         "temuan": hasil_temuan,
         "penyebab": penyebab,
         "rekomendasi": rekomendasi,
         "referensi": referensi,
+        "retrieved_documents": [
+            {
+                "rank": context["rank"],
+                "document": context["document"],
+                "cosine_similarity": context["cosine_similarity"],
+                "faiss_squared_l2_distance": context["faiss_squared_l2_distance"],
+            }
+            for context in retrieval_contexts
+        ],
+        "similarity_evaluation": {
+            "average": ragas_evaluation["average_similarity"],
+            "maximum": ragas_evaluation["maximum_similarity"],
+            "minimum": ragas_evaluation["minimum_similarity"],
+        },
+        "answer": jawaban_sistem,
+        "ragas_evaluation": ragas_evaluation,
     }
 
     try:

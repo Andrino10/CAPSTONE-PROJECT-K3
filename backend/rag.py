@@ -178,6 +178,10 @@ def rag_system(query, include_retrieval=False):
             {
                 "rank": rank,
                 "faiss_squared_l2_distance": float(distance),
+                "cosine_similarity": float(
+                    np.dot(query_embedding, doc_embeddings[document_index])
+                    / (np.linalg.norm(query_embedding) * np.linalg.norm(doc_embeddings[document_index]))
+                ),
                 "document": structured_data[document_index],
             }
             for rank, (distance, document_index) in enumerate(matching_results, start=1)

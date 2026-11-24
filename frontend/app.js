@@ -195,6 +195,10 @@ function mapBackendResponse(data) {
     references:      data.referensi
       ? [{ text: data.referensi, source: 'Knowledge Base RAG' }]
       : [],
+    retrievedDocuments: Array.isArray(data.retrieved_documents) ? data.retrieved_documents : [],
+    answer: data.answer || '',
+    similarity: data.similarity_evaluation || {},
+    ragas: data.ragas_evaluation || { status: 'BELUM_TERSEDIA' },
   };
 }
 
@@ -278,6 +282,50 @@ function renderResult(data, inputText) {
         </div>
       </div>`)
     .join('');
+
+  // ── Evaluation dashboard ──
+  const metricLabels = {
+    average: 'Average Similarity',
+    context_precision: 'Context Precision',
+    context_recall: 'Context Recall',
+    faithfulness: 'Faithfulness',
+    answer_relevancy: 'Answer Relevancy',
+    answer_correctness: 'Answer Correctness',
+  };
+  const ragas = data.ragas || {};
+  const cards = [
+    ['average', data.similarity?.average],
+    ['context_precision', ragas.context_precision],
+    ['context_recall', ragas.context_recall],
+    ['faithfulness', ragas.faithfulness],
+    ['answer_relevancy', ragas.answer_relevancy],
+    ['answer_correctness', ragas.answer_correctness],
+  ];
+  document.getElementById('evaluation-grid').innerHTML = cards.map(([key, value]) => {
+    const available = typeof value === 'number' && Number.isFinite(value);
+    const percent = available ? Math.round(value * 100) : null;
+    return `
+      <div class="metric-card">
+        <span class="metric-card__label">${metricLabels[key]}</span>
+        <strong class="metric-card__value">${available ? percent + '%' : 'N/A'}</strong>
+        <span class="metric-card__raw">${available ? value.toFixed(4) : 'Tidak tersedia'}</span>
+      </div>`;
+  }).join('');
+
+  document.getElementById('evaluation-status').textContent =
+    ragas.status === 'BERHASIL'
+      ? 'Status RAGAS: BERHASIL'
+      : `Status RAGAS: ${ragas.status_detail || 'Belum tersedia'}`;
+
+  document.getElementById('retrieval-table-body').innerHTML =
+    data.retrievedDocuments.length
+      ? data.retrievedDocuments.map(item => `
+          <tr>
+            <td>${item.rank}</td>
+            <td>${item.document.kondisi || '—'}<br><small>${item.document.solusi || ''}</small></td>
+            <td>${(item.cosine_similarity * 100).toFixed(2)}%<br><small>${item.cosine_similarity.toFixed(4)}</small></td>
+          </tr>`).join('')
+      : '<tr><td colspan="3">Tidak ada dokumen yang relevan ditemukan.</td></tr>';
 
   // ── Meta bar ──
   document.getElementById('meta-time').textContent  = getTimestamp();

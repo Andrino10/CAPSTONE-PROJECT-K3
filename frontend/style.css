@@ -966,6 +966,57 @@ body {
   font-weight: 500;
 }
 
+/* ── RAGAS Evaluation ── */
+.evaluation-panel {
+  background: var(--navy-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin: 16px 0;
+  box-shadow: var(--shadow-card);
+}
+
+.evaluation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 96px;
+  justify-content: center;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.metric-card__label { color: var(--text-secondary); font-size: 12px; }
+.metric-card__value { color: var(--yellow); font-size: 24px; line-height: 1.2; }
+.metric-card__raw { color: var(--text-muted); font-size: 11px; }
+.evaluation-status { color: var(--text-secondary); font-size: 12px; margin: 12px 0; }
+
+.retrieval-table-wrap { overflow-x: auto; }
+.retrieval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.retrieval-table th,
+.retrieval-table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.retrieval-table th { color: var(--text-secondary); background: rgba(255,255,255,0.03); }
+.retrieval-table td small { color: var(--text-muted); }
+
 /* ══════════════════════════════════════════
    META BAR
 ══════════════════════════════════════════ */
@@ -1103,6 +1154,7 @@ body {
   .risk-indicator-row { flex-direction: row; }
 
   .cards-grid { grid-template-columns: 1fr; }
+  .evaluation-grid { grid-template-columns: 1fr 1fr; }
 
   .input-footer { flex-direction: column; align-items: stretch; }
   .btn-analyze { justify-content: center; }

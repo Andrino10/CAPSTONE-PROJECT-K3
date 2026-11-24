@@ -259,6 +259,33 @@
 
       </div><!-- /cards-grid -->
 
+      <!-- ── RAGAS Evaluation Dashboard ── -->
+      <div class="evaluation-panel" id="evaluation-panel">
+        <div class="card__header">
+          <div class="card__icon card__icon--blue">📈</div>
+          <div>
+            <div class="card__title">Evaluasi Retrieval &amp; Jawaban</div>
+            <div class="card__subtitle">Similarity dan RAGAS adalah dua pengukuran berbeda</div>
+          </div>
+        </div>
+
+        <div class="evaluation-grid" id="evaluation-grid"></div>
+        <p class="evaluation-status" id="evaluation-status"></p>
+
+        <div class="retrieval-table-wrap">
+          <table class="retrieval-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Dokumen Retrieved</th>
+                <th>Similarity</th>
+              </tr>
+            </thead>
+            <tbody id="retrieval-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- ── Meta Info Bar ── -->
       <div class="meta-bar" id="meta-bar">
         <div class="meta-item">

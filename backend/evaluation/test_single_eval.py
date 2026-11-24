@@ -113,6 +113,84 @@ class KnowledgeBaseAlignmentTests(unittest.TestCase):
                 self.assertEqual(level, sample["ground_truth_risiko"])
 
 
+class RagasIntegrationTests(unittest.TestCase):
+    def test_unconfigured_evaluator_is_unavailable_not_fake_score(self):
+        from evaluation.ragas_eval import evaluate_ragas
+
+        with patch.dict("os.environ", {}, clear=True):
+            result = evaluate_ragas(
+                question="Kabel listrik terbuka",
+                answer="Matikan sumber listrik.",
+                contexts=["Kabel listrik terbuka"],
+                similarity_scores=[0.8, 0.6],
+            )
+
+        self.assertEqual(result["status"], "BELUM_TERSEDIA")
+        self.assertIsNone(result["context_precision"])
+        self.assertIsNone(result["faithfulness"])
+        self.assertAlmostEqual(result["average_similarity"], 0.7)
+
+    def test_empty_context_does_not_invoke_evaluator(self):
+        from evaluation.ragas_eval import evaluate_ragas
+
+        result = evaluate_ragas(
+            question="Nasi goreng",
+            answer="Belum dapat dinilai.",
+            contexts=[],
+        )
+
+        self.assertEqual(result["status"], "BELUM_TERSEDIA")
+        self.assertIsNone(result["maximum_similarity"])
+
+    def test_only_successful_ragas_scores_are_appended(self):
+        import tempfile
+        from evaluation.ragas_eval import RAGAS_COLUMNS, record_ragas_result
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "hasil_ragas.csv"
+            record_ragas_result(
+                question="Pertanyaan",
+                answer="Jawaban",
+                contexts=["Konteks"],
+                similarity_scores=[0.5],
+                ground_truth=None,
+                evaluation={
+                    "status": "BELUM_TERSEDIA",
+                    "status_detail": "Tidak ada evaluator",
+                    "average_similarity": 0.5,
+                },
+                results_path=path,
+            )
+            self.assertFalse(path.exists())
+
+            record_ragas_result(
+                question="Pertanyaan",
+                answer="Jawaban",
+                contexts=["Konteks"],
+                similarity_scores=[0.5],
+                ground_truth=None,
+                evaluation={
+                    "status": "BERHASIL",
+                    "status_detail": "Berhasil",
+                    "average_similarity": 0.5,
+                    "maximum_similarity": 0.5,
+                    "minimum_similarity": 0.5,
+                    "context_precision": None,
+                    "context_recall": None,
+                    "faithfulness": 0.8,
+                    "answer_relevancy": 0.9,
+                    "answer_correctness": None,
+                    "ground_truth": None,
+                },
+                results_path=path,
+            )
+            with path.open(encoding="utf-8", newline="") as file:
+                reader = csv.DictReader(file)
+                rows = list(reader)
+                self.assertEqual(set(reader.fieldnames or []), set(RAGAS_COLUMNS))
+            self.assertEqual(len(rows), 1)
+
+
 class RetrievalMetricTests(unittest.TestCase):
     def test_metrics_use_relevance_labels_and_rank(self):
         from backend.evaluation.ragas_metrics import calculate_retrieval_metrics
@@ -145,9 +223,10 @@ class ApiIntegrationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(
-            set(payload), {"level", "temuan", "penyebab", "rekomendasi", "referensi"}
-        )
+        self.assertTrue({
+            "level", "temuan", "penyebab", "rekomendasi", "referensi",
+            "retrieved_documents", "similarity_evaluation", "answer", "ragas_evaluation",
+        }.issubset(payload))
         self.assertIn(
             payload["level"], {"RENDAH", "SEDANG", "TINGGI", "TIDAK DAPAT DINILAI"}
         )
@@ -280,7 +359,11 @@ class ApiIntegrationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
-            set(response.get_json()), {"level", "temuan", "penyebab", "rekomendasi", "referensi"}
+            {
+                "level", "temuan", "penyebab", "rekomendasi", "referensi",
+                "retrieved_documents", "similarity_evaluation", "answer", "ragas_evaluation",
+            }.issubset(response.get_json()),
+            True,
         )
 
 
