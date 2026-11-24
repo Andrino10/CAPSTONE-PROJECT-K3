@@ -1,6 +1,8 @@
 """Regression checks for the SIGAP retrieval data contract."""
 
 import csv
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 import sys
 import tempfile
@@ -28,6 +30,38 @@ class KnowledgeBaseAlignmentTests(unittest.TestCase):
 
         self.assertEqual(distances.shape, (1, 2))
         self.assertEqual(indexes.shape, (1, 2))
+
+    def test_analysis_retrieval_exposes_the_local_ranking_components(self):
+        import rag
+
+        _, _, contexts = rag.rag_system(
+            "Kabel listrik terbuka berada di dekat pekerja.", include_retrieval=True
+        )
+
+        self.assertTrue(contexts)
+        first_context = contexts[0]
+        self.assertIn("relevance_score", first_context)
+        self.assertIn("lexical_coverage", first_context)
+        self.assertAlmostEqual(
+            first_context["relevance_score"],
+            0.45 * first_context["cosine_similarity"]
+            + 0.55 * first_context["lexical_coverage"],
+        )
+        self.assertGreaterEqual(first_context["lexical_coverage"], 0.0)
+        self.assertLessEqual(first_context["lexical_coverage"], 1.0)
+
+    def test_exact_match_cosine_similarity_stays_within_valid_range(self):
+        import rag
+
+        _, _, contexts = rag.rag_system(
+            "Permit kerja tidak diverifikasi oleh supervisor", include_retrieval=True
+        )
+
+        self.assertTrue(contexts)
+        for context in contexts:
+            with self.subTest(condition=context["document"]["kondisi"]):
+                self.assertGreaterEqual(context["cosine_similarity"], -1.0)
+                self.assertLessEqual(context["cosine_similarity"], 1.0)
 
     def test_retrieval_matches_report_to_the_hazard_condition(self):
         import rag
@@ -203,6 +237,48 @@ class RetrievalMetricTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["hit_at_2"], 2 / 3)
         self.assertAlmostEqual(metrics["mrr"], 0.5)
 
+    def test_metrics_follow_the_retrieval_cutoff(self):
+        from backend.evaluation.ragas_metrics import calculate_retrieval_metrics
+
+        metrics = calculate_retrieval_metrics([[False, False, True], [True, False, False]])
+
+        self.assertAlmostEqual(metrics["precision_at_3"], 1 / 3)
+        self.assertAlmostEqual(metrics["recall_at_3"], 1.0)
+        self.assertAlmostEqual(metrics["hit_at_3"], 1.0)
+        self.assertAlmostEqual(metrics["mrr"], 2 / 3)
+
+    def test_console_report_prints_each_query_and_aggregated_similarity(self):
+        import rag
+        from evaluation.similarity_eval_all import print_console_report
+
+        document = rag.structured_data[0]
+        rows = [
+            {
+                "sample_id": "sample-1",
+                "laporan": "Contoh laporan pengujian.",
+                "rank": rank,
+                "retrieved_kondisi": document["kondisi"],
+                "cosine_similarity": score,
+            }
+            for rank, score in enumerate((0.6, 0.8, 0.7), start=1)
+        ]
+        output = StringIO()
+
+        with redirect_stdout(output):
+            print_console_report(rows)
+
+        report = output.getvalue()
+        self.assertIn("QUERY:\nContoh laporan pengujian.", report)
+        self.assertIn(
+            f"- {document['kondisi']} | {document['risiko']} | "
+            f"{document['penjelasan']} | {document['solusi']}",
+            report,
+        )
+        self.assertIn("Average Similarity : 0.7000", report)
+        self.assertIn("Maximum Similarity : 0.8000", report)
+        self.assertIn("Minimum Similarity : 0.6000", report)
+        self.assertIn("Hasil disimpan ke: hasil_similarity.csv", report)
+
     def test_validation_module_is_importable_from_project_root(self):
         from backend.evaluation import check_metrics
 
@@ -216,9 +292,11 @@ class ApiIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             app.config["INTERACTION_LOG_PATH"] = Path(temporary_directory) / "interaction_logs.jsonl"
             try:
-                response = app.test_client().post(
-                    "/api/analyze", json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"}
-                )
+                with patch("app.record_ragas_result"):
+                    response = app.test_client().post(
+                        "/api/analyze",
+                        json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"},
+                    )
             finally:
                 app.config.pop("INTERACTION_LOG_PATH", None)
 
@@ -232,6 +310,9 @@ class ApiIntegrationTests(unittest.TestCase):
             payload["level"], {"RENDAH", "SEDANG", "TINGGI", "TIDAK DAPAT DINILAI"}
         )
         self.assertEqual(payload["referensi"], "Knowledge SIGAP AI")
+        self.assertTrue(payload["retrieved_documents"])
+        self.assertIn("relevance_score", payload["retrieved_documents"][0])
+        self.assertIn("lexical_coverage", payload["retrieved_documents"][0])
 
     def test_analyze_rejects_empty_or_non_text_reports(self):
         from app import app
@@ -309,11 +390,12 @@ class ApiIntegrationTests(unittest.TestCase):
             log_path = Path(temporary_directory) / "interaction_logs.jsonl"
             app.config["INTERACTION_LOG_PATH"] = log_path
             try:
-                response = app.test_client().post(
-                    "/api/analyze",
-                    headers={"X-Interaction-Request-ID": "test-request-001"},
-                    json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"},
-                )
+                with patch("app.record_ragas_result"):
+                    response = app.test_client().post(
+                        "/api/analyze",
+                        headers={"X-Interaction-Request-ID": "test-request-001"},
+                        json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"},
+                    )
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(log_path.exists())
                 from evaluation.interaction_logger import read_interactions
@@ -326,11 +408,12 @@ class ApiIntegrationTests(unittest.TestCase):
                 self.assertGreaterEqual(len(records[0]["retrieved_contexts"]), 1)
                 self.assertLessEqual(len(records[0]["retrieved_contexts"]), 2)
 
-                duplicate_response = app.test_client().post(
-                    "/api/analyze",
-                    headers={"X-Interaction-Request-ID": "test-request-001"},
-                    json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"},
-                )
+                with patch("app.record_ragas_result"):
+                    duplicate_response = app.test_client().post(
+                        "/api/analyze",
+                        headers={"X-Interaction-Request-ID": "test-request-001"},
+                        json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"},
+                    )
                 self.assertEqual(duplicate_response.status_code, 200)
                 self.assertEqual(len(read_interactions(log_path)), 1)
 
@@ -351,7 +434,9 @@ class ApiIntegrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             app.config["INTERACTION_LOG_PATH"] = Path(temporary_directory) / "interaction_logs.jsonl"
             try:
-                with patch("app.record_interaction", side_effect=OSError("disk penuh")):
+                with patch(
+                    "app.record_interaction", side_effect=OSError("disk penuh")
+                ), patch("app.record_ragas_result"):
                     response = app.test_client().post(
                         "/api/analyze", json={"laporan": "Kabel listrik terbuka berada di dekat pekerja"}
                     )

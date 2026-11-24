@@ -33,6 +33,18 @@ doc_embeddings = np.asarray(embed_model.encode(docs), dtype="float32")
 index = faiss.IndexFlatL2(doc_embeddings.shape[1])
 index.add(doc_embeddings)
 
+
+def cosine_similarity(left, right):
+    """Return cosine similarity clamped to its mathematical range."""
+    left_vector = np.asarray(left, dtype="float64")
+    right_vector = np.asarray(right, dtype="float64")
+    denominator = float(np.linalg.norm(left_vector) * np.linalg.norm(right_vector))
+    if denominator == 0:
+        raise ValueError("Embedding bernorma nol tidak dapat dihitung cosinenya.")
+    score = float(np.dot(left_vector, right_vector) / denominator)
+    return float(np.clip(score, -1.0, 1.0))
+
+
 STOP_WORDS = {
     "agar", "akan", "area", "atau", "bagaimana", "bahaya", "bahwa",
     "bekerja", "berisiko", "dalam", "dan", "dari", "dengan", "di", "ini",
@@ -63,11 +75,7 @@ MIN_RELEVANCE_SCORE = 0.45
 def _score_reference(query, query_embedding, document_index):
     query_vector = np.asarray(query_embedding[0], dtype="float32")
     document_vector = doc_embeddings[document_index]
-    denominator = float(np.linalg.norm(query_vector) * np.linalg.norm(document_vector))
-    if denominator == 0:
-        raise ValueError("Embedding laporan atau knowledge tidak valid.")
-
-    semantic_similarity = float(np.dot(query_vector, document_vector) / denominator)
+    semantic_similarity = cosine_similarity(query_vector, document_vector)
     query_tokens = _tokenize(query)
     total_weight = sum(inverse_document_frequency.get(token, 1) for token in query_tokens)
     if total_weight:
@@ -152,7 +160,7 @@ def rag_system(query, include_retrieval=False):
         _, _, indexes, scores = _rank_references(query_part, k=2)
         top_score = scores[0][0]
         top_risk = structured_data[int(indexes[0][0])]["risiko"]
-        for rank, (document_index, (relevance_score, _)) in enumerate(
+        for rank, (document_index, (relevance_score, lexical_coverage)) in enumerate(
             zip(indexes[0], scores)
         ):
             document_index = int(document_index)
@@ -168,9 +176,16 @@ def rag_system(query, include_retrieval=False):
 
             seen_indexes.add(document_index)
             distance = float(np.sum((query_embedding - doc_embeddings[document_index]) ** 2))
-            matching_results.append((distance, document_index))
+            matching_results.append((
+                distance,
+                document_index,
+                relevance_score,
+                lexical_coverage,
+            ))
 
-    retrieved_indexes = [document_index for _, document_index in matching_results]
+    retrieved_indexes = [
+        document_index for _, document_index, _, _ in matching_results
+    ]
     level, temuan = analisis_risiko(query, retrieved_indexes)
 
     if include_retrieval:
@@ -178,13 +193,15 @@ def rag_system(query, include_retrieval=False):
             {
                 "rank": rank,
                 "faiss_squared_l2_distance": float(distance),
-                "cosine_similarity": float(
-                    np.dot(query_embedding, doc_embeddings[document_index])
-                    / (np.linalg.norm(query_embedding) * np.linalg.norm(doc_embeddings[document_index]))
+                "cosine_similarity": cosine_similarity(
+                    query_embedding, doc_embeddings[document_index]
                 ),
+                "relevance_score": float(relevance_score),
+                "lexical_coverage": float(lexical_coverage),
                 "document": structured_data[document_index],
             }
-            for rank, (distance, document_index) in enumerate(matching_results, start=1)
+            for rank, (distance, document_index, relevance_score, lexical_coverage)
+            in enumerate(matching_results, start=1)
         ]
         return level, temuan, retrieval_contexts
 

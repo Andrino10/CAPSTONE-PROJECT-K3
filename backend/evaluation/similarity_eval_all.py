@@ -1,6 +1,6 @@
 """Run reproducible semantic-similarity and retrieval evaluation for SIGAP AI.
 
-The CSV output has one row per retrieved reference (rank 1 and 2), preserving
+The CSV output has one row per retrieved reference (rank 1 through 3), preserving
 the report, its declared ground truth, raw FAISS squared-L2 distance, and a
 separately calculated cosine similarity.  L2 distance is never interpreted as
 cosine similarity.
@@ -32,10 +32,7 @@ REQUIRED_COLUMNS = {
 
 def cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
     """Return cosine similarity for two embedding vectors."""
-    denominator = float(np.linalg.norm(left) * np.linalg.norm(right))
-    if denominator == 0:
-        raise ValueError("Embedding bernorma nol tidak dapat dihitung cosinenya.")
-    return float(np.dot(left, right) / denominator)
+    return rag.cosine_similarity(left, right)
 
 
 def load_dataset(dataset_path: Path = DATASET_PATH) -> list[dict[str, str]]:
@@ -75,7 +72,7 @@ def run_evaluation(
         if expected_risk != sample["ground_truth_risiko"]:
             raise ValueError(f"Risiko acuan tidak cocok untuk {sample['sample_id']}: {expected_risk}")
 
-        query_embedding, distances, indices = rag.retrieve_references(sample["laporan"], k=2)
+        query_embedding, distances, indices = rag.retrieve_references(sample["laporan"], k=3)
         query_embedding = np.asarray(query_embedding, dtype="float32")
         for rank, (distance, document_index) in enumerate(zip(distances[0], indices[0]), start=1):
             reference_embedding = np.asarray(rag.doc_embeddings[document_index], dtype="float32")
@@ -106,13 +103,48 @@ def print_summary(rows: list[dict[str, object]]) -> None:
     cosine_scores = [float(row["cosine_similarity"]) for row in rows]
     l2_distances = [float(row["faiss_squared_l2_distance"]) for row in rows]
     print(f"Sampel diuji: {len({row['sample_id'] for row in rows})}")
-    print(f"Referensi dievaluasi: {len(rows)} (k=2)")
+    print(f"Referensi dievaluasi: {len(rows)} (k=3)")
     print("Cosine similarity (laporan vs referensi): "
           f"rata-rata={np.mean(cosine_scores):.4f}, min={np.min(cosine_scores):.4f}, "
           f"maks={np.max(cosine_scores):.4f}")
     print("FAISS squared-L2 distance (bukan cosine similarity): "
           f"rata-rata={np.mean(l2_distances):.4f}, min={np.min(l2_distances):.4f}, "
           f"maks={np.max(l2_distances):.4f}")
+
+
+def print_console_report(rows: list[dict[str, object]]) -> None:
+    """Print per-query top-3 references and aggregate cosine similarity."""
+    if not rows:
+        raise ValueError("Tidak ada hasil evaluasi untuk ditampilkan.")
+
+    documents_by_condition = {
+        item["kondisi"]: item for item in rag.structured_data
+    }
+    rows_by_sample: dict[str, list[dict[str, object]]] = {}
+    for row in rows:
+        sample_id = str(row["sample_id"])
+        rows_by_sample.setdefault(sample_id, []).append(row)
+
+    for sample_rows in rows_by_sample.values():
+        sample_rows.sort(key=lambda row: int(row["rank"]))
+        print("=" * 72)
+        print("QUERY:")
+        print(sample_rows[0]["laporan"])
+        print("\nRETRIEVED DOCS:")
+        for row in sample_rows:
+            document = documents_by_condition[str(row["retrieved_kondisi"])]
+            print(
+                f"- {document['kondisi']} | {document['risiko']} | "
+                f"{document['penjelasan']} | {document['solusi']}"
+            )
+        print("=" * 72)
+
+    cosine_scores = [float(row["cosine_similarity"]) for row in rows]
+    print("\n===== HASIL EVALUASI =====")
+    print(f"Average Similarity : {np.mean(cosine_scores):.4f}")
+    print(f"Maximum Similarity : {np.max(cosine_scores):.4f}")
+    print(f"Minimum Similarity : {np.min(cosine_scores):.4f}")
+    print(f"\nHasil disimpan ke: {RESULTS_PATH.name}")
 
 
 if __name__ == "__main__":

@@ -106,6 +106,8 @@ def analyze():
                 "document": context["document"],
                 "cosine_similarity": context["cosine_similarity"],
                 "faiss_squared_l2_distance": context["faiss_squared_l2_distance"],
+                "relevance_score": context["relevance_score"],
+                "lexical_coverage": context["lexical_coverage"],
             }
             for context in retrieval_contexts
         ],

@@ -59,13 +59,13 @@ def validate() -> dict[str, float]:
 
     if set(by_sample) != set(dataset_ids):
         raise ValueError("sample_id hasil tidak sesuai dengan dataset.")
-    if len(results) != len(dataset) * 2:
-        raise ValueError("Jumlah hasil harus tepat dua referensi per sampel (k=2).")
+    if len(results) != len(dataset) * 3:
+        raise ValueError("Jumlah hasil harus tepat tiga referensi per sampel (k=3).")
 
     relevance = []
     for sample_id, rows in by_sample.items():
         ranks = sorted(int(row["rank"]) for row in rows)
-        if ranks != [1, 2]:
+        if ranks != [1, 2, 3]:
             raise ValueError(f"Rank retrieval tidak lengkap untuk {sample_id}: {ranks}")
         relevance.append([row["is_ground_truth"] == "True" for row in sorted(rows, key=lambda row: int(row["rank"]))])
 
@@ -77,6 +77,6 @@ def validate() -> dict[str, float]:
 
 if __name__ == "__main__":
     values = validate()
-    print("VALID: hasil lengkap, k=2 konsisten, dan rentang metrik sah.")
+    print("VALID: hasil lengkap, k=3 konsisten, dan rentang metrik sah.")
     for name, value in values.items():
         print(f"{name}: {value:.4f}")

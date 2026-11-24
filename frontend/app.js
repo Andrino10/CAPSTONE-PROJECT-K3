@@ -202,7 +202,6 @@ function mapBackendResponse(data) {
     retrievedDocuments: Array.isArray(data.retrieved_documents) ? data.retrieved_documents : [],
     answer: data.answer || '',
     similarity: data.similarity_evaluation || {},
-    ragas: data.ragas_evaluation || { status: 'BELUM_TERSEDIA' },
   };
 }
 
@@ -288,55 +287,83 @@ function renderResult(data, inputText) {
     .join('');
 
   // ── Evaluation dashboard ──
-  const metricLabels = {
-    average: 'Average Similarity',
-    context_precision: 'Context Precision',
-    context_recall: 'Context Recall',
-    faithfulness: 'Faithfulness',
-    answer_relevancy: 'Answer Relevancy',
-    answer_correctness: 'Answer Correctness',
-  };
-  const ragas = data.ragas || {};
-  const cards = [
-    ['average', data.similarity?.average],
-    ['context_precision', ragas.context_precision],
-    ['context_recall', ragas.context_recall],
-    ['faithfulness', ragas.faithfulness],
-    ['answer_relevancy', ragas.answer_relevancy],
-    ['answer_correctness', ragas.answer_correctness],
+  const retrievedDocuments = data.retrievedDocuments;
+  const average = values => values.length
+    ? values.reduce((total, value) => total + value, 0) / values.length
+    : null;
+  const getScores = key => retrievedDocuments
+    .map(item => item[key])
+    .filter(value => typeof value === 'number' && Number.isFinite(value));
+  const cosineScores = getScores('cosine_similarity');
+  const relevanceScores = getScores('relevance_score');
+  const lexicalCoverageScores = getScores('lexical_coverage');
+  const metricCards = [
+    {
+      label: 'Rata-rata cosine similarity',
+      value: average(cosineScores),
+      detail: value => `Rata-rata dari ${cosineScores.length} dokumen`,
+    },
+    {
+      label: 'Cosine similarity tertinggi',
+      value: cosineScores.length ? Math.max(...cosineScores) : null,
+      detail: () => 'Kecocokan semantik terbaik',
+    },
+    {
+      label: 'Cosine similarity terendah',
+      value: cosineScores.length ? Math.min(...cosineScores) : null,
+      detail: () => 'Kecocokan semantik terendah',
+    },
+    {
+      label: 'Rata-rata skor ranking',
+      value: average(relevanceScores),
+      detail: () => 'Skor gabungan per segmen laporan',
+    },
+    {
+      label: 'Rata-rata cakupan kata',
+      value: average(lexicalCoverageScores),
+      detail: value => `Dihitung untuk ${lexicalCoverageScores.length} dokumen`,
+    },
+    {
+      label: 'Dokumen ditemukan',
+      count: retrievedDocuments.length,
+      detail: () => 'Dari maksimal 2 konteks retrieval',
+    },
   ];
-  document.getElementById('evaluation-grid').innerHTML = cards.map(([key, value]) => {
-    const available = typeof value === 'number' && Number.isFinite(value);
-    const percent = available ? Math.round(value * 100) : null;
-    const reason = !available
-      ? (key === 'context_precision' ? ragas.status_detail_context_precision
-        : key === 'context_recall' ? ragas.status_detail_context_recall
-        : key === 'faithfulness' ? ragas.status_detail_faithfulness
-        : key === 'answer_relevancy' ? ragas.status_detail_answer_relevancy
-        : key === 'answer_correctness' ? ragas.status_detail_answer_correctness
-        : 'Tidak tersedia')
-      : '';
+  document.getElementById('evaluation-grid').innerHTML = metricCards.map(metric => {
+    const available = typeof metric.value === 'number' && Number.isFinite(metric.value);
+    const value = metric.count !== undefined
+      ? `${metric.count} / 2`
+      : available ? `${(metric.value * 100).toFixed(2)}%` : 'Belum ada data';
+    const raw = metric.count !== undefined
+      ? `${metric.count} dokumen`
+      : available ? metric.value.toFixed(4) : 'Tidak ada konteks untuk dihitung';
     return `
       <div class="metric-card">
-        <span class="metric-card__label">${metricLabels[key]}</span>
-        <strong class="metric-card__value">${available ? percent + '%' : 'N/A'}</strong>
-        <span class="metric-card__raw">${available ? value.toFixed(4) : (reason || 'Tidak tersedia')}</span>
+        <span class="metric-card__label">${metric.label}</span>
+        <strong class="metric-card__value">${value}</strong>
+        <span class="metric-card__raw">${raw}</span>
+        <span class="metric-card__raw">${metric.detail(metric.value)}</span>
       </div>`;
   }).join('');
 
   document.getElementById('evaluation-status').textContent =
-    ragas.status === 'BERHASIL'
-      ? 'Status RAGAS: BERHASIL'
-      : ragas.status === 'SEBAGIAN_BERHASIL'
-        ? 'Status RAGAS: SEBAGIAN BERHASIL'
-        : `Status RAGAS: ${ragas.status_detail || 'Belum tersedia'}`;
+    'Semua skor dihitung lokal dari SentenceTransformer dan ranking FAISS. '
+    + 'Skor ranking per segmen = 45% cosine similarity + 55% cakupan kata berbobot IDF. '
+    + 'Cosine similarity pada tabel membandingkan laporan penuh dengan dokumen. '
+    + 'Ini mengukur retrieval, bukan akurasi jawaban; metrik yang memerlukan ground truth '
+    + 'atau evaluator generatif tidak ditampilkan.';
 
   document.getElementById('retrieval-table-body').innerHTML =
     data.retrievedDocuments.length
       ? data.retrievedDocuments.map(item => `
           <tr>
             <td>${item.rank}</td>
-            <td>${item.document.kondisi || '—'}<br><small>${item.document.solusi || ''}</small></td>
+            <td>
+              <strong>${item.document.kondisi || '—'}</strong><br>
+              <small>Risiko: ${item.document.risiko || '—'}</small><br>
+              <small>${item.document.penjelasan || ''}</small><br>
+              <small>Solusi: ${item.document.solusi || '—'}</small>
+            </td>
             <td>${(item.cosine_similarity * 100).toFixed(2)}%<br><small>${item.cosine_similarity.toFixed(4)}</small></td>
           </tr>`).join('')
       : '<tr><td colspan="3">Tidak ada dokumen yang relevan ditemukan.</td></tr>';

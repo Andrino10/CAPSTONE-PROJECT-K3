@@ -1,4 +1,4 @@
-"""Ground-truth retrieval metrics for SIGAP AI at k=2.
+"""Ground-truth retrieval metrics for SIGAP AI.
 
 Despite its historical filename, this module does not call RAGAS.  It uses
 explicit relevance labels from test_dataset.csv, so the metrics are locally
@@ -49,9 +49,9 @@ def calculate_retrieval_metrics(
         reciprocal_ranks.append(0.0 if first_rank is None else 1.0 / first_rank)
 
     return {
-        "precision_at_2": relevant_retrieved / (len(rows) * k),
-        "recall_at_2": relevant_retrieved / (len(rows) * relevant_per_query),
-        "hit_at_2": mean(any(labels) for labels in rows),
+        f"precision_at_{k}": relevant_retrieved / (len(rows) * k),
+        f"recall_at_{k}": relevant_retrieved / (len(rows) * relevant_per_query),
+        f"hit_at_{k}": mean(any(labels) for labels in rows),
         "mrr": mean(reciprocal_ranks),
     }
 
@@ -110,6 +110,6 @@ def ragas_preflight(dataset_path: Path) -> tuple[bool, list[str]]:
 
 if __name__ == "__main__":
     metrics = metrics_from_results()
-    print("Retrieval metrics (k=2)")
+    print("Retrieval metrics (k=3)")
     for name, value in metrics.items():
         print(f"{name}: {value:.4f}")

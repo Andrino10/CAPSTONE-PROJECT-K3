@@ -16,7 +16,7 @@ ambang kecocokan ditolak; laporan tanpa kecocokan yang cukup diberi status
 `ground_truth_kondisi` dan `ground_truth_risiko` menunjuk ke entri yang sudah
 ada di `knowledge.txt`; kolom `data_asal` menyatakannya secara eksplisit.
 Dataset ini menguji fungsi sistem dan bukan statistik kecelakaan kerja maupun
-validasi penilaian ahli. Satu reference acuan per sampel memungkinkan Recall@2
+validasi penilaian ahli. Satu reference acuan per sampel memungkinkan Recall@3
 yang terdefinisi.
 
 | Kolom | Fungsi evaluasi |
@@ -30,7 +30,7 @@ yang terdefinisi.
 ## Metode
 
 `similarity_eval_all.py` memakai helper retrieval yang sama dengan `rag.py`
-lalu menulis dua kandidat teratas untuk seluruh laporan ke
+lalu menulis tiga kandidat teratas untuk seluruh laporan ke
 `hasil_similarity.csv`. Endpoint analisis juga memeriksa setiap kalimat atau
 bagian bahaya secara terpisah agar beberapa kondisi dalam satu laporan dapat
 ditampilkan tanpa menambahkan referensi lemah dari kalimat lain. Nilai cosine
@@ -41,9 +41,9 @@ mengukur ambang kecocokan atau keputusan status tidak dapat dinilai.
 
 `ragas_metrics.py` menghitung retrieval berbasis `is_ground_truth`:
 
-- Precision@2 = referensi relevan yang diambil / (jumlah laporan x 2)
-- Recall@2 = referensi acuan yang ditemukan / seluruh referensi acuan
-- Hit@2 = proporsi laporan dengan sedikitnya satu reference acuan di top-2
+- Precision@3 = referensi relevan yang diambil / (jumlah laporan x 3)
+- Recall@3 = referensi acuan yang ditemukan / seluruh referensi acuan
+- Hit@3 = proporsi laporan dengan sedikitnya satu reference acuan di top-3
 - MRR = rata-rata kebalikan rank relevan pertama.
 
 Similarity dan retrieval hanya mengukur kedekatan teks serta keberhasilan
@@ -84,16 +84,18 @@ tidak dihitung serta tidak boleh ditafsirkan sebagai akurasi sistem.
 
 ## Menjalankan dari folder backend
 
-Satu perintah menjalankan seluruh evaluasi lokal yang didukung: similarity,
-retrieval, validasi hasil, dan preflight RAGAS.
+Satu perintah mengevaluasi tiga referensi teratas tiap laporan, menampilkan
+dokumen yang ditemukan beserta ringkasan cosine similarity, lalu memvalidasi
+hasil CSV. Semua perhitungan dilakukan lokal dengan SentenceTransformer dan
+FAISS; tidak ada evaluator/API generatif yang dipanggil.
 
 ```powershell
 cd backend
 python -m evaluation
 ```
 
-Perintah tersebut tidak menyatakan RAGAS berhasil apabila prasyaratnya belum
-terpenuhi; status tersebut ditampilkan sebagai `tidak dijalankan`.
+Evaluasi interaksi aktual dan preflight RAGAS tetap dapat dijalankan terpisah
+dengan perintah pada bagian masing-masing.
 
 ## Menjalankan per modul
 
@@ -109,4 +111,4 @@ python -m unittest backend.evaluation.test_single_eval -v
 
 `check_metrics.py` gagal dengan status non-nol untuk kolom yang hilang, data
 kosong, nilai cosine/L2 yang tidak sah, ketidaksesuaian jumlah sampel, atau
-rank selain 1 dan 2.
+rank selain 1, 2, dan 3.
