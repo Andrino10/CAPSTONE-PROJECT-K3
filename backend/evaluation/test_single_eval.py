@@ -101,6 +101,24 @@ class KnowledgeBaseAlignmentTests(unittest.TestCase):
             },
         )
 
+    def test_retrieval_returns_the_two_closest_related_documents(self):
+        import rag
+
+        _, _, contexts = rag.rag_system(
+            "Pekerja bekerja di ketinggian tanpa safety harness dan kabel listrik terbuka di dekat area kerja.",
+            include_retrieval=True,
+        )
+
+        self.assertEqual(len(contexts), 2)
+        self.assertEqual([context["rank"] for context in contexts], [1, 2])
+        self.assertEqual(
+            {context["document"]["kondisi"] for context in contexts},
+            {
+                "Pekerja bekerja di ketinggian tanpa safety harness",
+                "Kabel listrik terbuka",
+            },
+        )
+
     def test_unrelated_report_is_not_assigned_a_risk_level(self):
         import rag
 
@@ -321,6 +339,7 @@ class ApiIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(payload["referensi"], "Knowledge SIGAP AI")
         self.assertTrue(payload["retrieved_documents"])
+        self.assertLessEqual(len(payload["retrieved_documents"]), 2)
         self.assertIn("relevance_score", payload["retrieved_documents"][0])
         self.assertIn("lexical_coverage", payload["retrieved_documents"][0])
 

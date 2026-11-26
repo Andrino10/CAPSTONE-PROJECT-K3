@@ -70,6 +70,7 @@ inverse_document_frequency = {
     for token, frequency in document_frequency.items()
 }
 MIN_RELEVANCE_SCORE = 0.45
+MAX_RELATED_DOCUMENTS = 2
 
 
 def _score_reference(query, query_embedding, document_index):
@@ -155,9 +156,13 @@ def rag_system(query, include_retrieval=False):
     query_embedding = np.asarray(embed_model.encode([query]), dtype="float32")[0]
     matching_results = []
     seen_indexes = set()
+    risk_matching_results = []
+    seen_risk_indexes = set()
 
     for query_part in _split_query(query):
-        _, _, indexes, scores = _rank_references(query_part, k=2)
+        _, _, indexes, scores = _rank_references(
+            query_part, k=MAX_RELATED_DOCUMENTS
+        )
         top_score = scores[0][0]
         top_risk = structured_data[int(indexes[0][0])]["risiko"]
         for rank, (document_index, (relevance_score, lexical_coverage)) in enumerate(
@@ -166,25 +171,36 @@ def rag_system(query, include_retrieval=False):
             document_index = int(document_index)
             if relevance_score < MIN_RELEVANCE_SCORE:
                 continue
+
+            distance = float(np.sum((query_embedding - doc_embeddings[document_index]) ** 2))
+            if document_index not in seen_indexes:
+                seen_indexes.add(document_index)
+                matching_results.append((
+                    distance,
+                    document_index,
+                    relevance_score,
+                    lexical_coverage,
+                ))
+
             if rank > 0 and (
                 top_score - relevance_score > 0.1
                 or structured_data[document_index]["risiko"] != top_risk
             ):
                 continue
-            if document_index in seen_indexes:
-                continue
+            if document_index not in seen_risk_indexes:
+                seen_risk_indexes.add(document_index)
+                risk_matching_results.append((
+                    distance,
+                    document_index,
+                    relevance_score,
+                    lexical_coverage,
+                ))
 
-            seen_indexes.add(document_index)
-            distance = float(np.sum((query_embedding - doc_embeddings[document_index]) ** 2))
-            matching_results.append((
-                distance,
-                document_index,
-                relevance_score,
-                lexical_coverage,
-            ))
+    matching_results.sort(key=lambda result: (-result[2], result[0], result[1]))
+    matching_results = matching_results[:MAX_RELATED_DOCUMENTS]
 
     retrieved_indexes = [
-        document_index for _, document_index, _, _ in matching_results
+        document_index for _, document_index, _, _ in risk_matching_results
     ]
     level, temuan = analisis_risiko(query, retrieved_indexes)
 

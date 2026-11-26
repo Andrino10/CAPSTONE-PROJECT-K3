@@ -197,8 +197,11 @@ function mapBackendResponse(data) {
     findings:        Array.isArray(data.temuan) ? data.temuan : ['Lihat analisis penyebab'],
     cause:           data.penyebab || '—',
     recommendations: Array.isArray(data.rekomendasi) ? data.rekomendasi : [data.rekomendasi],
-    references:      data.referensi
-      ? [{ text: data.referensi, source: 'Knowledge Base RAG' }]
+    references:      Array.isArray(data.retrieved_documents)
+      ? data.retrieved_documents.slice(0, 2).map((item, index) => ({
+          text: item.document?.kondisi || 'Dokumen terkait',
+          source: `Dokumen terkait ${index + 1}`,
+        }))
       : [],
     retrievedDocuments: Array.isArray(data.retrieved_documents) ? data.retrieved_documents : [],
     answer: data.answer || '',
@@ -325,9 +328,9 @@ function renderResult(data, inputText) {
       detail: value => `Dihitung untuk ${lexicalCoverageScores.length} dokumen`,
     },
     {
-      label: 'Dokumen ditemukan',
+      label: 'Dokumen terkait ditampilkan',
       count: retrievedDocuments.length,
-      detail: () => 'Dari maksimal 2 konteks retrieval',
+      detail: () => 'Dua pembahasan terdekat dari knowledge base',
     },
   ];
   document.getElementById('evaluation-grid').innerHTML = metricCards.map(metric => {
@@ -348,7 +351,8 @@ function renderResult(data, inputText) {
   }).join('');
 
   document.getElementById('evaluation-status').textContent =
-    'Semua skor dihitung lokal dari SentenceTransformer dan ranking FAISS. '
+    'Dua dokumen dengan pembahasan paling dekat ditampilkan dari knowledge base. '
+    + 'Semua skor dihitung lokal dari SentenceTransformer dan ranking FAISS. '
     + 'Skor ranking per segmen = 45% cosine similarity + 55% cakupan kata berbobot IDF. '
     + 'Cosine similarity pada tabel membandingkan laporan penuh dengan dokumen. '
     + 'Ini mengukur retrieval, bukan akurasi jawaban; metrik yang memerlukan ground truth '
