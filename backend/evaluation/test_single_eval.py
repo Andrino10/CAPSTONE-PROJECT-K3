@@ -286,6 +286,16 @@ class RetrievalMetricTests(unittest.TestCase):
 
 
 class ApiIntegrationTests(unittest.TestCase):
+    def test_frontend_is_available_from_the_backend_server(self):
+        from app import app
+
+        response = app.test_client().get("/")
+        try:
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b"SIGAP AI", response.data)
+        finally:
+            response.close()
+
     def test_analyze_endpoint_preserves_response_contract(self):
         from app import app
 

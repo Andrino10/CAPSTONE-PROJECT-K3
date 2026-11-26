@@ -321,24 +321,20 @@ Contoh request:
 }
 ```
 
-### 3. Jalankan Frontend
+### 3. Buka Frontend
 
-Frontend dijalankan secara terpisah sebagai halaman statis.
-
-Dari direktori utama:
-
-```powershell
-cd frontend
-python -m http.server 8080
-```
-
-Kemudian buka:
+Frontend sekarang disajikan oleh Flask dari server yang sama dengan API.
+Setelah backend berjalan, buka:
 
 ```text
-http://localhost:8080
+http://localhost:5000
 ```
 
-Frontend mengirim request ke `http://localhost:5000/api/analyze`. Jalankan backend dan frontend pada dua terminal terpisah.
+Tidak perlu menjalankan server frontend kedua. Frontend akan memanggil API
+melalui origin yang sama, sehingga masalah koneksi lintas port dapat dihindari.
+
+Jika ingin tetap memakai Live Server atau `python -m http.server`, frontend
+tetap akan memakai backend lokal di `http://localhost:5000`.
 
 ### 4. Menggunakan Aplikasi
 
@@ -664,9 +660,8 @@ Pastikan folder `backend/evaluation` dapat ditulis. Jangan membuka CSV dalam mod
 
 ### Port Sudah Digunakan
 
-Backend default menggunakan port `5000`. Frontend statis menggunakan port `8080` pada contoh dokumentasi ini.
-
-Jika port backend berubah, update URL fetch pada `frontend/app.js`. Jika port frontend digunakan proses lain, pilih port lain saat menjalankan `python -m http.server`.
+Backend dan frontend default menggunakan port `5000` yang sama. Jika menjalankan
+frontend dari Live Server, pastikan backend tetap aktif di `http://localhost:5000`.
 
 ## Batasan Sistem
 

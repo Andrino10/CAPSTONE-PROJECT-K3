@@ -11,9 +11,10 @@
 
 'use strict';
 
-// Gunakan satu konfigurasi URL untuk Live Server dan backend Flask terpisah.
+// Saat disajikan Flask (port 5000), gunakan origin yang sama agar tidak
+// bergantung pada CORS. Live Server tetap memakai backend Flask lokal.
 const API_BASE_URL = window.SIGAP_API_BASE_URL
-  || 'http://localhost:5000';
+  || (window.location.port === '5000' ? '' : 'http://localhost:5000');
 
 // ═══════════════════════════════════════════════════
 //  UTILITIES

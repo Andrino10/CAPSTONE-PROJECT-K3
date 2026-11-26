@@ -1,6 +1,7 @@
 import random
+from pathlib import Path
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
 from rag import rag_system
@@ -8,8 +9,16 @@ from rag import structured_data
 from evaluation.interaction_logger import record_interaction
 from evaluation.ragas_eval import evaluate_ragas, ground_truth_for_query, record_ragas_result
 
-app = Flask(__name__)
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 CORS(app)
+
+
+@app.route("/", methods=["GET"])
+def frontend():
+    """Serve the dashboard from the same origin as the API."""
+    return send_from_directory(FRONTEND_DIR, "index.html")
+
 
 @app.route("/api/sample", methods=["GET"])
 def sample():
